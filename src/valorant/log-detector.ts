@@ -59,6 +59,9 @@ export class ValorantLogDetector {
   private currentMap: string | null = null;
   private currentAgent: string | null = null;
   private matchStartedForCurrentGame = false;
+  private lastDiscoverAttempt = 0;
+  private discoverBackoffMs = 5000;
+  private discoverFailCount = 0;
 
   constructor(onEvent: EventCallback, onStatus: StatusCallback) {
     this.onEvent = onEvent;
@@ -124,8 +127,17 @@ export class ValorantLogDetector {
 
   private tick() {
     if (!this.logFilePath) {
+      const now = Date.now();
+      if (now - this.lastDiscoverAttempt < this.discoverBackoffMs) return;
+      this.lastDiscoverAttempt = now;
       this.discoverLogFile();
-      if (!this.logFilePath) return;
+      if (!this.logFilePath) {
+        this.discoverFailCount++;
+        this.discoverBackoffMs = Math.min(60000, 5000 * Math.pow(2, Math.min(this.discoverFailCount, 4)));
+        return;
+      }
+      this.discoverFailCount = 0;
+      this.discoverBackoffMs = 5000;
     }
 
     try {
@@ -198,6 +210,8 @@ export class ValorantLogDetector {
         if (fs.existsSync(p)) {
           this.logFilePath = p;
           this.logDir = path.dirname(p);
+          this.discoverFailCount = 0;
+          this.discoverBackoffMs = 5000;
           console.log('[ValorantLogDetector] Found log:', p);
           return true;
         }
@@ -219,6 +233,9 @@ export class ValorantLogDetector {
   private readNewLines() {
     try {
       const stats = fs.statSync(this.logFilePath!);
+      if (stats.size < this.filePosition) {
+        this.filePosition = 0;
+      }
       if (stats.size <= this.filePosition) return;
 
       const fd = fs.openSync(this.logFilePath!, 'r');

@@ -9,7 +9,7 @@
       /* ─── Loading screen ─── */
       #loading-screen {
         position: fixed; inset: 0;
-        background: #0d0a1a;
+        background: #070312;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         z-index: 999999;
@@ -45,8 +45,8 @@
       }
       .loading-scan {
         position: absolute; left: 0; right: 0; height: 2px;
-        background: #0cf;
-        box-shadow: 0 0 12px #0cf;
+        background: #00eeff;
+        box-shadow: 0 0 12px rgba(0, 238, 255, 0.6);
         animation: scan-line 1.5s linear infinite;
         pointer-events: none;
       }
@@ -61,20 +61,20 @@
       <!-- Pixel adventurer (16x16) -->
       <svg width="64" height="64" viewBox="0 0 16 16" shapeRendering="crispEdges" style="animation: pixel-walk 0.6s steps(2) infinite;">
         <!-- Cap -->
-        <rect x="4" y="1" width="8" height="1" fill="#0cf"/>
-        <rect x="3" y="2" width="10" height="2" fill="#0cf"/>
+        <rect x="4" y="1" width="8" height="1" fill="#00eeff"/>
+        <rect x="3" y="2" width="10" height="2" fill="#00eeff"/>
         <!-- Face -->
         <rect x="4" y="4" width="8" height="3" fill="#ffd6a8"/>
         <!-- Eyes -->
         <rect x="5" y="5" width="1" height="1" fill="#0d0a1a"/>
         <rect x="10" y="5" width="1" height="1" fill="#0d0a1a"/>
         <!-- Mouth -->
-        <rect x="7" y="6" width="2" height="1" fill="#c04dff"/>
+        <rect x="7" y="6" width="2" height="1" fill="#ff2ea0"/>
         <!-- Neck -->
         <rect x="6" y="7" width="4" height="1" fill="#ffd6a8"/>
         <!-- Body -->
         <rect x="4" y="8" width="8" height="4" fill="#a371f7"/>
-        <rect x="5" y="8" width="6" height="1" fill="#c04dff"/>
+        <rect x="5" y="8" width="6" height="1" fill="#ff2ea0"/>
         <!-- Arms -->
         <rect x="2" y="8" width="2" height="4" fill="#a371f7"/>
         <rect x="12" y="8" width="2" height="4" fill="#a371f7"/>
@@ -88,8 +88,8 @@
         <rect x="4" y="15" width="2" height="1" fill="#0d0a1a"/>
         <rect x="10" y="15" width="2" height="1" fill="#0d0a1a"/>
       </svg>
-      <div style="font-family:'VonwaonBitmap',monospace;font-size:14px;color:#c04dff;margin-top:16px;letter-spacing:2px;">
-        LOADING<span class="load-dot">.</span><span class="load-dot">.</span><span class="load-dot">.</span>
+      <div style="font-family:'VonwaonBitmap',monospace;font-size:14px;color:#ff2ea0;margin-top:16px;letter-spacing:2px;">
+        加载中<span class="load-dot">.</span><span class="load-dot">.</span><span class="load-dot">.</span>
       </div>
       <div style="font-family:'VonwaonBitmap',monospace;font-size:10px;color:#9a90c8;margin-top:16px;opacity:0.6;">
         GAMESOUND FX

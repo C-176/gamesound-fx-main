@@ -9,6 +9,8 @@ import OnlineSoundBrowser from './components/OnlineSoundBrowser';
 import GroupManager from './components/GroupManager';
 import GroupFilterBar from './components/GroupFilterBar';
 import ValorantPanel from './components/ValorantPanel';
+import { Cassette, Globe } from './components/PixelIcons';
+import { copy, themeColor } from './ui/copy';
 
 
 const PREFIX_KEY_MAP: Record<string, number> = {
@@ -38,6 +40,42 @@ function App() {
   const pausedRef = useRef<string | null>(null);
   const allSoundsRef = useRef<Sound[]>([]);
   const blobUrlCache = useRef<Record<string, { url: string; format?: string[] }>>({});
+  const blobCacheOrder = useRef<string[]>([]);
+  const BLOB_CACHE_MAX = 32;
+
+  const formatFromPath = (filePath: string): string[] | undefined => {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    if (!ext) return undefined;
+    if (ext === 'mp3' || ext === 'mpeg') return ['mp3'];
+    return [ext];
+  };
+
+  const setBlobCacheEntry = useCallback((id: string, entry: { url: string; format?: string[] }) => {
+    const order = blobCacheOrder.current;
+    const existingIdx = order.indexOf(id);
+    if (existingIdx >= 0) order.splice(existingIdx, 1);
+    order.push(id);
+    blobUrlCache.current[id] = entry;
+    while (order.length > BLOB_CACHE_MAX) {
+      const evictId = order.shift()!;
+      const evicted = blobUrlCache.current[evictId];
+      if (evicted?.url.startsWith('blob:')) URL.revokeObjectURL(evicted.url);
+      delete blobUrlCache.current[evictId];
+      const evictHowl = soundRefs.current[evictId];
+      if (evictHowl) {
+        evictHowl.unload();
+        soundRefs.current[evictId] = null;
+      }
+    }
+  }, []);
+
+  const removeBlobCacheEntry = useCallback((id: string) => {
+    const cached = blobUrlCache.current[id];
+    if (cached?.url.startsWith('blob:')) URL.revokeObjectURL(cached.url);
+    delete blobUrlCache.current[id];
+    const idx = blobCacheOrder.current.indexOf(id);
+    if (idx >= 0) blobCacheOrder.current.splice(idx, 1);
+  }, []);
   const [currentVolume, setCurrentVolume] = useState(0.8);
   const [selectedDevice, setSelectedDevice] = useState<string>(() => {
     const saved = localStorage.getItem('selectedDevice');
@@ -495,7 +533,6 @@ function App() {
     let soundFormat: string[] | undefined;
 
     if ((sound as any).isImported) {
-      // Check cached blob URL
       const cached = blobUrlCache.current[sound.id];
       if (cached) {
         soundPath = cached.url;
@@ -504,27 +541,15 @@ function App() {
         const storedUrl = localStorage.getItem(`sound_${sound.id}`);
         if (storedUrl) {
           if (storedUrl.startsWith('imported://') || storedUrl.startsWith('imported-sound://')) {
-            const electron = (window as any).electron;
-            if (electron?.ipcRenderer?.invoke) {
-              const prefix = storedUrl.startsWith('imported-sound://') ? 'imported-sound://' : 'imported://';
-              const fileName = decodeURIComponent(storedUrl.replace(prefix, ''));
-              const result = await electron.ipcRenderer.invoke('read-imported-sound', fileName);
-              if (result?.data) {
-                const binary = atob(result.data);
-                const bytes = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                const blob = new Blob([bytes], { type: result.mimeType });
-                soundPath = URL.createObjectURL(blob);
-                soundFormat = [result.mimeType === 'audio/mpeg' ? 'mp3' : result.mimeType.split('/')[1]];
-                blobUrlCache.current[sound.id] = { url: soundPath, format: soundFormat };
-              } else {
-                soundPath = storedUrl;
-              }
-            } else {
-              soundPath = storedUrl;
-            }
-          } else if (storedUrl.startsWith('blob:') || storedUrl.startsWith('file://')) {
             soundPath = storedUrl;
+            soundFormat = formatFromPath(storedUrl);
+          } else if (storedUrl.startsWith('blob:')) {
+            soundPath = storedUrl;
+            soundFormat = formatFromPath(storedUrl);
+            setBlobCacheEntry(sound.id, { url: soundPath, format: soundFormat });
+          } else if (storedUrl.startsWith('file://')) {
+            soundPath = storedUrl;
+            soundFormat = formatFromPath(storedUrl);
           }
         }
       }
@@ -532,33 +557,11 @@ function App() {
 
     if (!soundPath) {
       const isElectron = window.electron !== undefined;
-      if (isElectron) {
-        // Check cached blob URL for built-in sound
-        const cached = blobUrlCache.current[sound.id];
-        if (cached) {
-          soundPath = cached.url;
-          soundFormat = cached.format;
-        } else {
-          const electron = (window as any).electron;
-          if (electron?.ipcRenderer?.invoke) {
-            const result = await electron.ipcRenderer.invoke('read-builtin-sound', sound.filename);
-            if (result?.data) {
-              const binary = atob(result.data);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              const blob = new Blob([bytes], { type: result.mimeType });
-              soundPath = URL.createObjectURL(blob);
-              soundFormat = [result.mimeType === 'audio/mpeg' ? 'mp3' : result.mimeType.split('/')[1]];
-              blobUrlCache.current[sound.id] = { url: soundPath, format: soundFormat };
-            }
-          }
-        }
-      }
-      // Final fallback
-      if (!soundPath) {
-        const soundsBasePath = isElectron ? (window as any).electron.soundBaseUrl || 'sound://' : '/sounds';
-        soundPath = `${soundsBasePath}${sound.filename}`;
-      }
+      const soundsBasePath = isElectron
+        ? (window as any).electron.soundBaseUrl || 'sound://'
+        : '/sounds/';
+      soundPath = `${soundsBasePath}${sound.filename}`;
+      soundFormat = formatFromPath(sound.filename);
     }
 
     const howl = new Howl({
@@ -602,7 +605,7 @@ function App() {
     setPlayingSound(sound.id);
     playingRef.current = sound.id;
     setLastPlayedSound(sound);
-  }, [currentVolume, selectedDevice]);
+  }, [currentVolume, selectedDevice, setBlobCacheEntry]);
 
   const stopSound = useCallback((soundId: string) => {
     if (soundRefs.current[soundId]) {
@@ -816,6 +819,13 @@ function App() {
   }, [activeGroupFilter]);
 
   const handleDeleteSound = useCallback((soundId: string) => {
+    const howl = soundRefs.current[soundId];
+    if (howl) {
+      howl.unload();
+      delete soundRefs.current[soundId];
+    }
+    removeBlobCacheEntry(soundId);
+
     const storedPath = localStorage.getItem(`sound_${soundId}`);
     if (storedPath) {
       const electron = (window as any).electron;
@@ -852,7 +862,7 @@ function App() {
     if (existingShortcut) {
       removeShortcut(existingShortcut[0]);
     }
-  }, [shortcuts, removeShortcut]);
+  }, [shortcuts, removeShortcut, removeBlobCacheEntry]);
 
   const handleImportFromPath = useCallback((filePath: string, name: string, groupId?: string) => {
     const fileUrl = filePath.startsWith('imported://') || filePath.startsWith('sound://')
@@ -998,7 +1008,7 @@ function App() {
   }, [isMuted, currentVolume]);
 
   return (
-    <div className="w-full h-full bg-bg-primary border-2 border-accent rounded-none flex flex-col overflow-hidden">
+    <div className="app-shell relative w-full h-full border-2 border-accent flex flex-col overflow-hidden">
       <TitleBar onSettingsClick={() => setShowSettings(true)} onValorantToggle={() => setShowValorant(prev => !prev)} showValorant={showValorant} valorantConnected={valorantConnected} teamMode={teamMode} onTeamToggle={() => setTeamMode(prev => !prev)} />
 
 
@@ -1025,15 +1035,21 @@ function App() {
         />
       ) : (
         <>
-        <div className="px-3 py-2 border-b-2 border-border-default">
+        <div className="toolbar-panel px-3 py-2.5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
+              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden>
+                <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
+                  <circle cx="10" cy="10" r="6" />
+                  <path d="M15 15l5 5" />
+                </svg>
+              </span>
               <input
                 type="text"
-                placeholder="SEARCH..."
+                placeholder={copy.toolbar.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-2.5 py-1.5 pr-7 border-2 border-border-default bg-bg-tertiary text-text-primary text-base font-pixel outline-none focus:border-accent placeholder:text-text-secondary transition-none rounded-none"
+                className="search-input font-pixel pl-7"
               />
               {searchQuery && (
                 <button
@@ -1046,22 +1062,31 @@ function App() {
             </div>
             <button
               onClick={handleImportSounds}
-              className="shrink-0 px-2.5 py-1.5 border-2 border-accent bg-accent/10 text-accent text-base font-pixel cursor-pointer hover:bg-accent hover:text-black transition-none rounded-none"
-              title="IMPORT SOUNDS"
+              className="btn-retro btn-retro-accent font-pixel btn-retro-icon"
+              title="导入本地音效文件"
             >
-              IMPORT
+              <Cassette size={12} color={themeColor.accent} />
+              {copy.toolbar.import}
             </button>
             <button
               onClick={() => setShowSniffer(true)}
-              className="shrink-0 px-2.5 py-1.5 border-2 border-accent-gold bg-accent-gold/10 text-accent-gold text-base font-pixel cursor-pointer hover:bg-accent-gold hover:text-black transition-none rounded-none"
-              title="SOUND SNIFFER"
+              className="btn-retro btn-retro-gold font-pixel btn-retro-icon"
+              title="打开爱给网并捕获音频"
             >
-              SNIFFER
+              <Globe size={12} color={themeColor.gold} />
+              {copy.toolbar.sniffer}
             </button>
           </div>
-          {searchQuery && (
-            <span className="block mt-1 text-sm font-pixel text-text-secondary font-pixel">{filteredSounds.length} RESULTS</span>
-          )}
+          <div className="mt-1.5 flex items-center justify-between gap-2 min-h-[14px]">
+            <span className="meta-label font-pixel">
+              {activeGroupFilter
+                ? `${copy.toolbar.groupPrefix} · ${getGroupById(activeGroupFilter)?.name ?? '—'}`
+                : copy.toolbar.allSounds}
+            </span>
+            <span className="meta-label font-pixel text-accent-cyan tabular-nums">
+              {copy.toolbar.count(filteredSounds.length, allSounds.length)}
+            </span>
+          </div>
         </div>
 
         <SoundGrid

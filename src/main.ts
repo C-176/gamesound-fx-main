@@ -15,6 +15,12 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let soundBrowserWindow: BrowserWindow | null = null;
+let soundBrowserFixedSize: { width: number; height: number } | null = null;
+let syncSoundBrowserPosition: (() => void) | null = null;
+const SOUND_BROWSER_REQUEST_FILTER = {
+  urls: ['*://*.aigei.com/*', '*://*.aigei.cn/*', '*://*.cdn.aigei.com/*'],
+};
+let soundBrowserWebRequestHandler: ((details: Electron.OnBeforeRequestListenerDetails, callback: (response: Electron.CallbackResponse) => void) => void) | null = null;
 let valorantDetector: ValorantLogDetector | null = null;
 let pendingPicker: { choices: Array<{ id: string; name: string }>; timer: ReturnType<typeof setTimeout> } | null = null;
 let capsLockHeld = false;
@@ -198,7 +204,7 @@ const capturedSounds: Record<string, { url: string; name: string; timestamp: num
 
 // ─── Win32 polling fallback (works in exclusive fullscreen games) ───
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
-const prevKeyState: Record<number, boolean> = {};
+const prevShortcutState: Record<string, boolean> = {};
 // Lazy-init koffi so it doesn't prevent startup if module is unavailable
 let getAsyncKeyState: ((vkCode: number) => number) | null = null;
 let keybd_event_fn: ((vk: number, scan: number, flags: number, extra: number) => void) | null = null;
@@ -328,6 +334,77 @@ const VK_MODIFIER: Record<string, number> = {
   Ctrl: 0x11, Alt: 0x12, Shift: 0x10, Meta: 0x5B,
 };
 
+function computeSoundBrowserBounds(
+  mainBounds: Electron.Rectangle,
+  browserWidth: number,
+  browserHeight: number,
+): { x: number; y: number; width: number; height: number } {
+  const display = screen.getDisplayMatching(mainBounds);
+  const work = display.workArea;
+  const gap = 4;
+  const margin = 8;
+
+  const rightX = mainBounds.x + mainBounds.width + gap;
+  const leftX = mainBounds.x - browserWidth - gap;
+  const rightFits = rightX + browserWidth <= work.x + work.width - margin;
+  const leftFits = leftX >= work.x + margin;
+
+  let x: number;
+  if (rightFits) {
+    x = rightX;
+  } else if (leftFits) {
+    x = leftX;
+  } else {
+    const rightVisible = Math.min(work.x + work.width, rightX + browserWidth) - Math.max(work.x, rightX);
+    const leftVisible = Math.min(work.x + work.width, leftX + browserWidth) - Math.max(work.x, leftX);
+    if (rightVisible >= leftVisible) {
+      x = Math.min(rightX, work.x + work.width - browserWidth - margin);
+    } else {
+      x = Math.max(leftX, work.x + margin);
+    }
+  }
+
+  const maxY = work.y + work.height - browserHeight - margin;
+  const y = Math.round(Math.max(work.y + margin, Math.min(mainBounds.y, maxY)));
+
+  return {
+    x: Math.round(x),
+    y,
+    width: browserWidth,
+    height: browserHeight,
+  };
+}
+
+function detachSoundBrowserFromMain() {
+  if (syncSoundBrowserPosition && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.removeListener('move', syncSoundBrowserPosition);
+    mainWindow.removeListener('resize', syncSoundBrowserPosition);
+    mainWindow.removeListener('moved', syncSoundBrowserPosition);
+  }
+  syncSoundBrowserPosition = null;
+  soundBrowserFixedSize = null;
+}
+
+function attachSoundBrowserToMain(_browser: BrowserWindow, width: number, height: number) {
+  detachSoundBrowserFromMain();
+  soundBrowserFixedSize = { width, height };
+  syncSoundBrowserPosition = () => {
+    if (!soundBrowserWindow || soundBrowserWindow.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return;
+    if (!soundBrowserFixedSize) return;
+    const mainBounds = mainWindow.getBounds();
+    const bounds = computeSoundBrowserBounds(
+      mainBounds,
+      soundBrowserFixedSize.width,
+      soundBrowserFixedSize.height,
+    );
+    soundBrowserWindow.setBounds(bounds);
+  };
+  syncSoundBrowserPosition();
+  mainWindow?.on('move', syncSoundBrowserPosition);
+  mainWindow?.on('moved', syncSoundBrowserPosition);
+  mainWindow?.on('resize', syncSoundBrowserPosition);
+}
+
 function getPollerExePath(): string {
   const resourcePath = path.join(process.resourcesPath, 'gsfx_poller.exe');
   if (fs.existsSync(resourcePath)) return resourcePath;
@@ -351,6 +428,77 @@ for (const [name, vk] of Object.entries(VK_MAP)) VK_TO_NAME[vk] = name;
 const KEY_NAME_TO_SCANCODE: Record<string, number> = {};
 for (const [code, name] of Object.entries(KEY_NAME_MAP)) KEY_NAME_TO_SCANCODE[name] = Number(code);
 
+const MOD_CTRL = 1;
+const MOD_SHIFT = 2;
+const MOD_ALT = 4;
+const MOD_META = 8;
+
+function readModifierMask(): number {
+  if (!getAsyncKeyState) return 0;
+  let mask = 0;
+  if ((getAsyncKeyState(0x11) & 0x8000) !== 0) mask |= MOD_CTRL;
+  if ((getAsyncKeyState(0x10) & 0x8000) !== 0) mask |= MOD_SHIFT;
+  if ((getAsyncKeyState(0x12) & 0x8000) !== 0) mask |= MOD_ALT;
+  if ((getAsyncKeyState(0x5B) & 0x8000) !== 0) mask |= MOD_META;
+  return mask;
+}
+
+function shortcutModifierMask(parts: string[]): number {
+  let mask = 0;
+  if (parts.includes('Ctrl')) mask |= MOD_CTRL;
+  if (parts.includes('Shift')) mask |= MOD_SHIFT;
+  if (parts.includes('Alt')) mask |= MOD_ALT;
+  if (parts.includes('Meta')) mask |= MOD_META;
+  return mask;
+}
+
+function modifiersMatch(parts: string[], activeMask: number): boolean {
+  return shortcutModifierMask(parts) === activeMask;
+}
+
+function parsePollerKeyEntry(entry: string): { vk: number; mask: number } | null {
+  if (!entry.startsWith('KEY:')) return null;
+  const body = entry.substring(4);
+  const colon = body.indexOf(':');
+  if (colon >= 0) {
+    const vk = parseInt(body.substring(0, colon), 10);
+    const mask = parseInt(body.substring(colon + 1), 10);
+    if (isNaN(vk)) return null;
+    return { vk, mask: isNaN(mask) ? 0 : mask };
+  }
+  const vk = parseInt(body, 10);
+  if (isNaN(vk)) return null;
+  return { vk, mask: 0 };
+}
+
+function handlePollerKeyEvent(vk: number, mask: number) {
+  const keyName = VK_TO_NAME[vk];
+  if (!keyName) return;
+
+  let bestSound: { shortcut: string; sid: string } | null = null;
+  for (const [shortcut, sid] of soundShortcutMap.entries()) {
+    const parts = shortcut.split('+');
+    if (parts[parts.length - 1] !== keyName) continue;
+    if (!modifiersMatch(parts, mask)) continue;
+    if (!bestSound || parts.length > bestSound.shortcut.split('+').length) {
+      bestSound = { shortcut, sid };
+    }
+  }
+  if (bestSound) {
+    debugLog('[poller] trigger: ' + bestSound.shortcut + ' -> ' + bestSound.sid);
+    mainWindow?.webContents.send('shortcut-triggered', bestSound.sid);
+    return;
+  }
+
+  if (stopShortcutKey) {
+    const stopParts = stopShortcutKey.split('+');
+    if (stopParts[stopParts.length - 1] === keyName && modifiersMatch(stopParts, mask)) {
+      debugLog('[poller] stop trigger: ' + stopShortcutKey);
+      mainWindow?.webContents.send('stop-shortcut-triggered');
+    }
+  }
+}
+
 function startKeyPolling() {
   // Try koffi-based GetAsyncKeyState polling first
   if (getAsyncKeyState) {
@@ -362,26 +510,27 @@ function startKeyPolling() {
         for (const k of soundShortcutMap.keys()) keysToCheck.push(k);
         if (stopShortcutKey && stopShortcutKey !== '') keysToCheck.push(stopShortcutKey);
 
+        const activeMask = readModifierMask();
+
         for (const shortcutStr of keysToCheck) {
           const parts = shortcutStr.split('+');
           const keyName = parts[parts.length - 1];
           const vkKey = VK_MAP[keyName];
           if (!vkKey) continue;
 
-          const hasCtrl = parts.includes('Ctrl') ? (getAsyncKeyState!(0x11) & 0x8000) !== 0 : true;
-          const hasAlt = parts.includes('Alt') ? (getAsyncKeyState!(0x12) & 0x8000) !== 0 : true;
-          const hasShift = parts.includes('Shift') ? (getAsyncKeyState!(0x10) & 0x8000) !== 0 : true;
-          const hasMeta = parts.includes('Meta') ? (getAsyncKeyState!(0x5B) & 0x8000) !== 0 : true;
-          if (!hasCtrl || !hasAlt || !hasShift || !hasMeta) continue;
+          if (!modifiersMatch(parts, activeMask)) {
+            prevShortcutState[shortcutStr] = false;
+            continue;
+          }
 
-          const nowPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
-          const wasPressed = prevKeyState[vkKey] || false;
+          const chordPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
+          const wasPressed = prevShortcutState[shortcutStr] || false;
 
-          if (nowPressed && !wasPressed) {
+          if (chordPressed && !wasPressed) {
             if (shortcutStr === stopShortcutKey) mainWindow?.webContents.send('stop-shortcut-triggered');
             else { const sid = soundShortcutMap.get(shortcutStr); if (sid) mainWindow?.webContents.send('shortcut-triggered', sid); }
           }
-          prevKeyState[vkKey] = nowPressed;
+          prevShortcutState[shortcutStr] = chordPressed;
         }
 
       } catch (_e) { /* poll error */ }
@@ -461,25 +610,9 @@ function startExePolling(exePath: string) {
           for (const entry of entries) {
             if (!entry.startsWith('KEY:')) continue;
             if (isRecordingShortcut) continue;
-            const vk = parseInt(entry.substring(4));
-            if (isNaN(vk)) continue;
-            const keyName = VK_TO_NAME[vk];
-            if (!keyName) continue;
-
-            for (const [shortcut, sid] of soundShortcutMap.entries()) {
-              const sk = shortcut.split('+').pop();
-              if (sk === keyName) {
-                debugLog('[poller] trigger: ' + shortcut + ' -> ' + sid);
-                mainWindow?.webContents.send('shortcut-triggered', sid);
-              }
-            }
-            if (stopShortcutKey) {
-              const sk = stopShortcutKey.split('+').pop();
-              if (sk === keyName && stopShortcutKey.split('+').length === 1) {
-                debugLog('[poller] stop trigger: ' + stopShortcutKey);
-                mainWindow?.webContents.send('stop-shortcut-triggered');
-              }
-            }
+            const parsed = parsePollerKeyEntry(entry);
+            if (!parsed) continue;
+            handlePollerKeyEvent(parsed.vk, parsed.mask);
           }
         }
       });
@@ -754,19 +887,20 @@ app.on('second-instance', () => {
   }
 });
 app.whenReady().then(() => {
-  const serveSoundFile = (filePath: string): Response => {
-    const data = fs.readFileSync(filePath);
+  const soundMimeTypes: Record<string, string> = {
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4',
+    '.flac': 'audio/flac',
+  };
+
+  const serveSoundFile = async (filePath: string): Promise<Response> => {
+    const data = await fs.promises.readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.mp3': 'audio/mpeg',
-      '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg',
-      '.m4a': 'audio/mp4',
-      '.flac': 'audio/flac',
-    };
     return new Response(data, {
       headers: {
-        'Content-Type': mimeTypes[ext] || 'audio/mpeg',
+        'Content-Type': soundMimeTypes[ext] || 'audio/mpeg',
         'Content-Length': String(data.length),
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
@@ -782,28 +916,25 @@ app.whenReady().then(() => {
     return prodPath;
   };
 
-  protocol.handle('sound', (request) => {
+  protocol.handle('sound', async (request) => {
     const url = new URL(request.url);
-    // Handle both sound://filename and sound:///path/to/file formats
     const fileName = decodeURIComponent(url.pathname.replace(/^\//, '') || url.host);
     const filePath = path.join(getBuiltinSoundsDir(), fileName);
     try {
-      const res = serveSoundFile(filePath);
-      return res;
+      return await serveSoundFile(filePath);
     } catch (e) {
       console.error(`[GameSound FX] 内置音效未找到: ${filePath}`, e);
       return new Response('Not found', { status: 404 });
     }
   });
 
-  protocol.handle('imported', (request) => {
+  protocol.handle('imported', async (request) => {
     const url = new URL(request.url);
     const rawName = url.pathname.replace(/^\//, '') || url.host;
     const fileName = decodeURIComponent(rawName);
     const filePath = path.join(getImportedSoundsDir(), fileName);
     try {
-      const res = serveSoundFile(filePath);
-      return res;
+      return await serveSoundFile(filePath);
     } catch (e) {
       console.error(`[GameSound FX] 导入音效未找到: ${filePath}`, e);
       return new Response('Not found', { status: 404 });
@@ -920,27 +1051,28 @@ app.whenReady().then(() => {
   ipcMain.on('open-sound-browser', () => {
     if (soundBrowserWindow) {
       soundBrowserWindow.show();
+      syncSoundBrowserPosition?.();
       return;
     }
 
+    const browserWidth = 420;
+    const browserHeight = Math.min(600, mainWindow?.getBounds().height ?? 600);
+
     soundBrowserWindow = new BrowserWindow({
-      width: 420,
-      height: Math.min(600, mainWindow?.getSize()[1] || 600),
+      width: browserWidth,
+      height: browserHeight,
       title: '音效浏览器 - 爱给网',
       frame: false,
+      resizable: false,
+      useContentSize: true,
       webPreferences: {
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
       },
     });
-    soundBrowserWindow.setMinimumSize(300, 200);
 
-    if (mainWindow) {
-      const [mx, my] = mainWindow.getPosition();
-      const [mw] = mainWindow.getSize();
-      soundBrowserWindow.setPosition(mx + mw, my);
-    }
+    attachSoundBrowserToMain(soundBrowserWindow, browserWidth, browserHeight);
 
     soundBrowserWindow.loadURL('https://www.aigei.com/s?type=sound');
 
@@ -951,8 +1083,8 @@ app.whenReady().then(() => {
         (function(){
           if(document.getElementById('gsfx-shell'))return; // only once
           var s=document.createElement('div');s.id='gsfx-shell';
-          s.innerHTML='<div id="gsfx-bar" style="display:flex;align-items:center;justify-content:space-between;height:36px;background:#12121f;border-bottom:2px solid #c04dff;-webkit-app-region:drag;user-select:none;position:fixed;top:0;left:0;right:0;z-index:999999;box-sizing:border-box;font-family:sans-serif;">'
-            +'<span style="color:#c04dff;font-size:13px;letter-spacing:1px;padding-left:10px;white-space:nowrap;">◆ SOUND BROWSER</span>'
+          s.innerHTML='<div id="gsfx-bar" style="display:flex;align-items:center;justify-content:space-between;height:36px;background:#0f0920;border-bottom:2px solid #ff2ea0;-webkit-app-region:drag;user-select:none;position:fixed;top:0;left:0;right:0;z-index:999999;box-sizing:border-box;font-family:sans-serif;">'
+            +'<span style="color:#00eeff;font-size:12px;letter-spacing:2px;padding-left:10px;white-space:nowrap;">◆ 音效嗅探</span>'
             +'<span id="gsfx-close" style="cursor:pointer;color:#8a8ac0;font-size:16px;padding:2px 10px;-webkit-app-region:no-drag;line-height:1;">✕</span>'
             +'</div>';
           document.body.prepend(s);
@@ -964,20 +1096,11 @@ app.whenReady().then(() => {
       `).catch(function(e){console.error('[GSFX] Title bar failed:',e);});
     });
 
-    const onMainMove = () => {
-      if (soundBrowserWindow && !soundBrowserWindow.isDestroyed() && mainWindow) {
-        const [mx, my] = mainWindow.getPosition();
-        const [mw] = mainWindow.getSize();
-        soundBrowserWindow.setPosition(mx + mw, my);
-      }
-    };
-    mainWindow?.on('move', onMainMove);
-
-    const filter = {
-      urls: ['*://*.aigei.com/*', '*://*.aigei.cn/*', '*://*.cdn.aigei.com/*'],
-    };
-
-    soundBrowserWindow.webContents.session.webRequest.onBeforeRequest(filter, (details, callback) => {
+    const browserSession = soundBrowserWindow.webContents.session;
+    if (soundBrowserWebRequestHandler) {
+      browserSession.webRequest.onBeforeRequest(SOUND_BROWSER_REQUEST_FILTER, null);
+    }
+    soundBrowserWebRequestHandler = (details, callback) => {
       const url = details.url;
       if (url.match(/\.(mp3|wav|ogg|m4a|flac)/i)) {
         const timestamp = Date.now();
@@ -990,12 +1113,15 @@ app.whenReady().then(() => {
         }
       }
       callback({ cancel: false });
-    });
+    };
+    browserSession.webRequest.onBeforeRequest(SOUND_BROWSER_REQUEST_FILTER, soundBrowserWebRequestHandler);
 
     soundBrowserWindow.on('closed', () => {
+      browserSession.webRequest.onBeforeRequest(SOUND_BROWSER_REQUEST_FILTER, null);
+      soundBrowserWebRequestHandler = null;
+      detachSoundBrowserFromMain();
       soundBrowserWindow = null;
       mainWindow?.webContents.send('sound-browser-closed');
-      mainWindow?.removeListener('move', onMainMove);
     });
   });
 

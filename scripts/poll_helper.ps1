@@ -24,6 +24,15 @@ if (-not ([System.Management.Automation.PSTypeName]'Win32').Type) {
     }
 }
 
+function Get-ModifierMask {
+    $mask = 0
+    if (([Win32.Win32]::GetAsyncKeyState(0x11) -band 0x8000) -ne 0) { $mask = $mask -bor 1 }
+    if (([Win32.Win32]::GetAsyncKeyState(0x10) -band 0x8000) -ne 0) { $mask = $mask -bor 2 }
+    if (([Win32.Win32]::GetAsyncKeyState(0x12) -band 0x8000) -ne 0) { $mask = $mask -bor 4 }
+    if (([Win32.Win32]::GetAsyncKeyState(0x5B) -band 0x8000) -ne 0) { $mask = $mask -bor 8 }
+    return $mask
+}
+
 $codes = $VkCodes.Split(',') | ForEach-Object { [int]$_ }
 $prevStates = @{}
 foreach ($c in $codes) { $prevStates[$c] = $false }
@@ -35,7 +44,8 @@ while ($true) {
         $nowDown = ($raw -band 0x8000) -ne 0
         $wasDown = $prevStates[$vk]
         if ($nowDown -and -not $wasDown) {
-            $output += "KEY:$vk"
+            $mask = Get-ModifierMask
+            $output += "KEY:${vk}:${mask}"
         }
         $prevStates[$vk] = $nowDown
     }

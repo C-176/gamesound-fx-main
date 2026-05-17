@@ -1,5 +1,6 @@
 import type { Group } from '../data/sounds';
 import { Folder } from './PixelIcons';
+import { copy, themeColor } from '../ui/copy';
 
 interface GroupFilterBarProps {
   groups: Group[];
@@ -11,17 +12,17 @@ interface GroupFilterBarProps {
 
 function GroupFilterBar({ groups, activeGroupFilter, onSelectGroupFilter, onGroupManagerClick, getGroupById }: GroupFilterBarProps) {
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 border-b-2 border-border-default">
-      <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+    <div className="flex items-center gap-1.5 px-2.5 py-2 border-b-2 border-border-default bg-bg-secondary/80">
+      <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0 scroll-fade-x pb-0.5">
         <button
           onClick={() => onSelectGroupFilter(null)}
           className={`shrink-0 font-pixel cursor-pointer border-2 transition-none rounded-none whitespace-nowrap
             ${activeGroupFilter === null
-              ? 'px-2.5 py-1 text-base border-accent bg-accent/15 text-accent shadow-[2px_2px_0_rgba(0,0,0,0.4)]'
-              : 'px-2 py-0.5 text-base border-transparent text-text-secondary hover:border-border-default'
+              ? 'chip-active px-2.5 py-1 text-base'
+              : 'px-2 py-0.5 text-base border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary'
             }`}
         >
-          ALL
+          {copy.common.all}
         </button>
         {groups.map(group => (
           <button
@@ -29,8 +30,8 @@ function GroupFilterBar({ groups, activeGroupFilter, onSelectGroupFilter, onGrou
             onClick={() => onSelectGroupFilter(group.id)}
             className={`shrink-0 font-pixel cursor-pointer border-2 transition-none rounded-none flex items-center gap-1 whitespace-nowrap
               ${activeGroupFilter === group.id
-                ? 'px-2.5 py-1 text-base border-accent bg-accent/15 text-accent shadow-[2px_2px_0_rgba(0,0,0,0.4)]'
-                : 'px-2 py-0.5 text-base border-transparent text-text-secondary hover:border-border-default'
+                ? 'chip-active px-2.5 py-1 text-base'
+                : 'px-2 py-0.5 text-base border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary'
               }`}
             style={activeGroupFilter === group.id ? { borderColor: group.color } : undefined}
           >
@@ -43,10 +44,10 @@ function GroupFilterBar({ groups, activeGroupFilter, onSelectGroupFilter, onGrou
       </div>
       <button
         onClick={onGroupManagerClick}
-        className="shrink-0 px-2.5 py-1.5 text-accent font-pixel cursor-pointer border-2 border-dashed border-accent/40 hover:border-accent hover:bg-accent/10 transition-none rounded-none flex items-center gap-1"
-        title="MANAGE GROUPS"
+        className="shrink-0 px-2 py-1.5 text-accent-cyan font-pixel cursor-pointer border-2 border-dashed border-accent-cyan/35 hover:border-accent-cyan hover:bg-accent-cyan/10 transition-none rounded-none flex items-center gap-1"
+        title={copy.group.manage}
       >
-        <Folder size={14} color="#0cf" />
+        <Folder size={14} color={themeColor.cyan} />
       </button>
     </div>
   );

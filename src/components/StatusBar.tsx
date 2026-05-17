@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { PixelSpeaker, PixelMuted, MusicNote } from './PixelIcons';
+import { copy } from '../ui/copy';
 
 interface StatusBarProps {
   volume: number;
@@ -59,15 +60,15 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
 
   const getSelectedDeviceLabel = () => {
     const device = devices.find(d => d.id === selectedDevice);
-    return device?.label || 'SELECT DEVICE';
+    return device?.label || copy.status.selectDevice;
   };
 
   return (
-    <div className="px-2.5 py-1.5 bg-bg-secondary border-t-2 border-border-default flex items-center gap-2">
+    <div className="status-bar-glow px-2.5 py-2 flex items-center gap-2">
       <button
         onClick={() => isPlaying ? onPause() : onPlayLast()}
         disabled={!hasLastSound && !isPlaying}
-        className={`shrink-0 w-7 h-7 border-2 flex items-center justify-center cursor-pointer transition-all duration-100 rounded-none
+        className={`shrink-0 w-7 h-7 border-2 flex items-center justify-center cursor-pointer transition-none rounded-none
           ${isPlaying
             ? 'border-accent-green bg-accent-green/10 text-accent-green'
             : hasLastSound
@@ -102,7 +103,7 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
           ${isMuted
             ? 'border-accent-red bg-accent-red/10 text-accent-red'
             : 'border-border-default bg-bg-tertiary text-text-secondary hover:border-accent hover:text-accent'}`}
-        title={isMuted ? 'UNMUTE' : 'MUTE'}
+        title={isMuted ? copy.status.unmute : copy.status.mute}
       >
         {isMuted ? <PixelMuted size={12} /> : <PixelSpeaker size={12} />}
       </button>
@@ -113,14 +114,14 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
           if (isMuted) onMuteToggle();
         }} className="volume-slider w-[80px]" />
         <span className="text-lg font-pixel text-text-secondary w-[30px] text-right">
-          {isMuted ? 'OFF' : Math.round(volume * 100) + '%'}
+          {isMuted ? copy.status.volumeOff : Math.round(volume * 100) + '%'}
         </span>
       </div>
 
       <div className="relative flex-1 min-w-0">
         <button
           onClick={() => setShowDeviceMenu(!showDeviceMenu)}
-          className="flex items-center gap-1 px-2 py-1 border-2 border-border-default bg-bg-tertiary text-base text-text-primary cursor-pointer hover:border-accent transition-all duration-100 w-full rounded-none"
+          className="flex items-center gap-1 px-2 py-1 border-2 border-border-default bg-bg-tertiary text-base text-text-primary cursor-pointer hover:border-accent hover:shadow-retro-sm transition-none w-full rounded-none"
         >
           <span className="truncate">{getSelectedDeviceLabel()}</span>
           <span className="text-accent font-pixel text-xs shrink-0">{showDeviceMenu ? '▲' : '▼'}</span>

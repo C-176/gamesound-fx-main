@@ -24,15 +24,15 @@ export const VALORANT_EVENTS: ValorantEvent[] = [
 ];
 
 export const VALORANT_EVENT_LABELS: Record<ValorantEvent, string> = {
-  match_start: 'MATCH START',
-  round_start: 'ROUND START',
-  round_end: 'ROUND END',
-  spike_planted: 'SPIKE PLANTED',
-  spike_defused: 'SPIKE DEFUSED',
-  spike_exploded: 'SPIKE EXPLODED',
-  match_end_red: 'MATCH END (RED WIN)',
-  match_end_blue: 'MATCH END (BLUE WIN)',
-  agent_select: 'AGENT SELECT',
+  match_start: '对局开始',
+  round_start: '回合开始',
+  round_end: '回合结束',
+  spike_planted: '爆能器安装',
+  spike_defused: '爆能器拆除',
+  spike_exploded: '爆能器爆炸',
+  match_end_red: '对局结束（红方胜）',
+  match_end_blue: '对局结束（蓝方胜）',
+  agent_select: '特工选择',
 };
 
 export interface ValorantBindings {

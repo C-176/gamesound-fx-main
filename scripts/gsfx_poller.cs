@@ -7,6 +7,20 @@ class GsfxKeyPoller {
     [DllImport("user32.dll")]
     static extern short GetAsyncKeyState(int vKey);
 
+    const int VK_CTRL = 0x11;
+    const int VK_SHIFT = 0x10;
+    const int VK_ALT = 0x12;
+    const int VK_META = 0x5B;
+
+    static int ReadModifierMask() {
+        int mask = 0;
+        if ((GetAsyncKeyState(VK_CTRL) & 0x8000) != 0) mask |= 1;
+        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) mask |= 2;
+        if ((GetAsyncKeyState(VK_ALT) & 0x8000) != 0) mask |= 4;
+        if ((GetAsyncKeyState(VK_META) & 0x8000) != 0) mask |= 8;
+        return mask;
+    }
+
     static void Main(string[] args) {
         if (args.Length < 1) return;
         var parts = args[0].Split(',');
@@ -25,9 +39,8 @@ class GsfxKeyPoller {
                 if (vk < 0 || vk > 255) continue;
                 bool nowDown = (GetAsyncKeyState(vk) & 0x8000) != 0;
                 if (nowDown && !prev[vk]) {
-                    Console.Write("KEY:");
-                    Console.Write(vk);
-                    Console.Write('\n');
+                    int mask = ReadModifierMask();
+                    Console.WriteLine("KEY:" + vk + ":" + mask);
                 }
                 prev[vk] = nowDown;
             }

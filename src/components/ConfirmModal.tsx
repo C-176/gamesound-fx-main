@@ -12,7 +12,7 @@ interface ConfirmModalProps {
   onCancel: () => void;
 }
 
-function ConfirmModal({ open, title, message, confirmLabel = 'OK', cancelLabel = 'CANCEL', danger = false, onConfirm, onCancel }: ConfirmModalProps) {
+function ConfirmModal({ open, title, message, confirmLabel = '确定', cancelLabel = '取消', danger = false, onConfirm, onCancel }: ConfirmModalProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -38,21 +38,21 @@ function ConfirmModal({ open, title, message, confirmLabel = 'OK', cancelLabel =
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 mb-3 pb-2 border-b-2 border-border-default">
-          {danger && <Skull size={14} color="#f44" />}
-          <h3 className="font-pixel text-lg text-accent">{title}</h3>
+          {danger && <Skull size={14} color="var(--accent-red)" />}
+          <h3 className="font-pixel text-base text-accent">{title}</h3>
         </div>
-        <p className="text-lg font-pixel text-text-primary mb-4 leading-relaxed">{message}</p>
+        <p className="text-base font-pixel text-text-primary mb-4 leading-relaxed">{message}</p>
         <div className="flex gap-2 justify-end">
           <button
             onClick={onCancel}
-            className="px-3 py-1.5 border-2 border-border-default bg-bg-tertiary text-text-secondary text-lg font-pixel cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none"
+            className="px-3 py-1.5 border-2 border-border-default bg-bg-tertiary text-text-secondary text-base font-pixel cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`px-3 py-1.5 border-2 text-lg font-pixel cursor-pointer transition-none rounded-none
+            className={`px-3 py-1.5 border-2 text-base font-pixel cursor-pointer transition-none rounded-none
               ${danger
                 ? 'border-accent-red bg-accent-red text-white hover:bg-accent-red/80'
                 : 'border-accent bg-accent text-black hover:bg-accent-gold hover:border-accent-gold'

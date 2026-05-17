@@ -543,3 +543,75 @@ export function Orbit({ size = 16, color = '#c04dff' }: PixelIconProps) {
     </PixelIcon>
   );
 }
+
+/* ─── Play Triangle (8x8) ─── */
+export function PlayTriangle({ size = 14, color = 'currentColor' }: PixelIconProps) {
+  return (
+    <PixelIcon size={size}>
+      {pixelate([
+        '..##....',
+        '..###...',
+        '..####..',
+        '..#####.',
+        '..#####.',
+        '..####..',
+        '..###...',
+        '..##....',
+      ], color, 8)}
+    </PixelIcon>
+  );
+}
+
+/* ─── Stop Square (8x8) ─── */
+export function StopSquare({ size = 14, color = 'currentColor' }: PixelIconProps) {
+  return (
+    <PixelIcon size={size}>
+      {pixelate([
+        '########',
+        '########',
+        '########',
+        '########',
+        '########',
+        '########',
+        '########',
+        '########',
+      ], color, 8)}
+    </PixelIcon>
+  );
+}
+
+/* ─── Checkmark (8x8) ─── */
+export function Checkmark({ size = 12, color = 'currentColor' }: PixelIconProps) {
+  return (
+    <PixelIcon size={size}>
+      {pixelate([
+        '........',
+        '......##',
+        '.....##.',
+        '....##..',
+        '.##.##..',
+        '..###...',
+        '...#....',
+        '........',
+      ], color, 8)}
+    </PixelIcon>
+  );
+}
+
+/* ─── Close X (8x8) ─── */
+export function CloseX({ size = 12, color = 'currentColor' }: PixelIconProps) {
+  return (
+    <PixelIcon size={size}>
+      {pixelate([
+        '##....##',
+        '.##..##.',
+        '..####..',
+        '...##...',
+        '..####..',
+        '.##..##.',
+        '##....##',
+        '........',
+      ], color, 8)}
+    </PixelIcon>
+  );
+}

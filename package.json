@@ -51,7 +51,8 @@
         "portable",
         "nsis"
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "publish": ["github"]
     },
     "nsis": {
       "oneClick": false,

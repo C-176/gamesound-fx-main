@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Sound, Group } from '../data/sounds';
-import { PixelGhost, Alien, Rocket, Saturn } from './PixelIcons';
+import { PixelGhost, Alien, Rocket, Saturn, Checkmark } from './PixelIcons';
 import ConfirmModal from './ConfirmModal';
+import { copy } from '../ui/copy';
 
 interface SoundGridProps {
   sounds: Sound[];
@@ -53,10 +54,10 @@ const SoundCard = memo(function SoundCard({
     <div className="relative">
       <button
         onClick={() => onToggleSound(sound)}
-        className={`w-full pl-3 pr-2 py-2.5 text-base font-pixel text-left cursor-pointer transition-none border-2 flex items-center gap-1 rounded-none
+        className={`w-full min-h-[40px] pl-3 pr-2 py-2 text-base font-pixel text-left cursor-pointer transition-none border-2 flex items-center gap-1.5 rounded-none
           ${isPlaying
-            ? 'border-accent bg-accent/10 text-accent-pink animate-[card-dance_0.8s_steps(2)_infinite,border-glow_1.5s_steps(1)_infinite]'
-            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-pink hover:text-accent-pink hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_var(--accent-pink)] active:translate-x-0 active:translate-y-0 active:shadow-none'
+            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[card-dance_0.8s_steps(2)_infinite,border-glow_1.5s_steps(1)_infinite]'
+            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-pink hover:text-accent-pink hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-retro-sm active:translate-x-0 active:translate-y-0 active:shadow-none'
           }`}
           style={isPlaying ? { willChange: 'transform' } : undefined}
       >
@@ -72,7 +73,7 @@ const SoundCard = memo(function SoundCard({
           <span
             onClick={(e) => { e.stopPropagation(); onRemoveShortcut(shortcut); }}
             className="shrink-0 text-xs font-pixel px-1 py-0.5 bg-accent text-black rounded-none cursor-pointer hover:bg-accent-red hover:text-white"
-            title={`${shortcut} — CLICK TO REMOVE`}
+            title={`${shortcut} · 点击移除`}
           >
             {shortcut}
           </span>
@@ -80,9 +81,9 @@ const SoundCard = memo(function SoundCard({
           <span
             onClick={(e) => { e.stopPropagation(); onRecordStart(sound.id); }}
             className="shrink-0 text-xs font-pixel px-1 py-0.5 border border-border-default text-text-secondary rounded-none cursor-pointer hover:border-accent-pink hover:text-accent-pink"
-            title="REC"
+            title={copy.sound.rec}
           >
-            REC
+            {copy.sound.rec}
           </span>
         )}
         {isPlaying && (
@@ -98,7 +99,7 @@ const SoundCard = memo(function SoundCard({
               ? 'border-accent bg-accent text-black'
               : 'border-border-default text-text-secondary hover:border-accent hover:text-accent'
             }`}
-          title="MENU"
+          title={copy.sound.menu}
         >
           <svg shapeRendering="crispEdges" width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <rect x="3" y="5" width="18" height="3" rx="1" />
@@ -133,7 +134,7 @@ const SoundCard = memo(function SoundCard({
                     >
                       <span className={`w-2 h-2 rounded-none shrink-0 ${isCurrentGroup ? 'opacity-40' : ''}`} style={{ backgroundColor: g.color }} />
                       <span className="flex-1 truncate">{g.name}</span>
-                      {isCurrentGroup && <span className="text-xs font-pixel text-text-secondary">●</span>}
+                      {isCurrentGroup && <Checkmark size={10} color="var(--text-secondary)" />}
                     </button>
                   );
                 })}
@@ -143,7 +144,7 @@ const SoundCard = memo(function SoundCard({
                     onClick={() => { onRemoveFromGroup(sound.id, soundGroupMap[sound.id]); onMenuClose(); }}
                     className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
                   >
-                    <span className="font-pixel text-sm mr-1">✕</span> REMOVE
+                    <span className="font-pixel text-sm mr-1">✕</span> {copy.sound.removeGroup}
                   </button>
                 )}
               </>
@@ -152,7 +153,7 @@ const SoundCard = memo(function SoundCard({
               onClick={() => { onDeleteRequest?.(sound.id); }}
               className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
             >
-              <span className="font-pixel text-sm mr-1">✕</span> DELETE
+              <span className="font-pixel text-sm mr-1">✕</span> {copy.sound.deleteSound}
             </button>
           </div>
         </div>,
@@ -245,7 +246,7 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
   return (
     <>
       <div className="flex-1 overflow-y-auto p-3" ref={gridRef} tabIndex={0}>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-2.5">
           {sounds.map(sound => {
             const gid = soundGroupMap[sound.id];
             return (
@@ -276,23 +277,24 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
           })}
         </div>
         {sounds.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-[140px] text-text-secondary">
-            <div className="mb-2 flex items-center gap-2">
-              <Alien size={28} color="#5a5a90" />
-              <Rocket size={28} color="#6a6aa0" />
-              <Saturn size={28} color="#7a7ab0" />
+          <div className="empty-state-panel flex flex-col items-center justify-center mx-1 my-2 py-8 px-4 text-text-secondary">
+            <div className="mb-3 flex items-center gap-3">
+              <Alien size={32} color="#5a5a90" />
+              <Rocket size={32} color="#6a6aa0" />
+              <Saturn size={32} color="#7a7ab0" />
             </div>
-            <span className="text-base font-pixel">{emptyHint || 'NO MATCHING SOUNDS'}</span>
+            <span className="text-base font-pixel text-text-primary">{emptyHint || copy.sound.emptyTitle}</span>
+            <span className="mt-1.5 meta-label font-pixel">{copy.sound.emptyHint}</span>
           </div>
         )}
       </div>
 
       <ConfirmModal
         open={confirmDeleteId !== null}
-        title="DELETE SOUND"
-        message="DELETE THIS SOUND?"
+        title={copy.sound.deleteTitle}
+        message={copy.sound.deleteMessage}
         danger
-        confirmLabel="DELETE"
+        confirmLabel={copy.sound.deleteConfirm}
         onConfirm={() => {
           if (confirmDeleteId) onDeleteSound(confirmDeleteId);
           setConfirmDeleteId(null);
