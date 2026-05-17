@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Electron builder debug
+builder-debug.yml
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Tool/IDE config (user-specific)
+.claude/
+.superpowers/
+.trae/
+
+# Build artifacts (source .cs files committed separately)
+scripts/*.exe

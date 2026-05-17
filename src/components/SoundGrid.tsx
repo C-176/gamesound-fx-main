@@ -1,0 +1,306 @@
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
+import type { Sound, Group } from '../data/sounds';
+import { PixelGhost, Alien, Rocket, Saturn } from './PixelIcons';
+import ConfirmModal from './ConfirmModal';
+
+interface SoundGridProps {
+  sounds: Sound[];
+  playingSound: string | null;
+  onToggleSound: (sound: Sound) => void;
+  shortcuts: Record<string, string>;
+  onAddShortcut: (soundId: string, shortcut: string) => void;
+  onRemoveShortcut: (shortcut: string) => void;
+  onDeleteSound: (soundId: string) => void;
+  groups: Group[];
+  soundGroupMap: Record<string, string>;
+  onAddSoundToGroup: (soundId: string, groupId: string) => void;
+  onRemoveSoundFromGroup: (soundId: string, groupId: string) => void;
+  getGroupById: (groupId: string) => Group | undefined;
+  emptyHint?: string;
+}
+
+interface SoundCardProps {
+  sound: Sound;
+  isPlaying: boolean;
+  shortcut: string | undefined;
+  isMenuOpen: boolean;
+  isRecThis: boolean;
+  recordingKeys: string[];
+  groupColor: string | null;
+  menuPos: { top: number; left: number };
+  onToggleSound: (sound: Sound) => void;
+  onRemoveShortcut: (shortcut: string) => void;
+  onRecordStart: (soundId: string) => void;
+  onMenuClick: (e: React.MouseEvent, soundId: string) => void;
+  onAddToGroup: (soundId: string, groupId: string) => void;
+  onRemoveFromGroup: (soundId: string, groupId: string) => void;
+  onDeleteSound: (soundId: string) => void;
+  onDeleteRequest?: (soundId: string) => void;
+  onMenuClose: () => void;
+  groups: Group[];
+  soundGroupMap: Record<string, string>;
+  getGroupById: (groupId: string) => Group | undefined;
+}
+
+const SoundCard = memo(function SoundCard({
+  sound, isPlaying, shortcut, isMenuOpen, isRecThis, recordingKeys, groupColor, menuPos,
+  onToggleSound, onRemoveShortcut, onRecordStart,
+  onMenuClick, onAddToGroup, onRemoveFromGroup, onDeleteSound, onDeleteRequest, onMenuClose,
+  groups, soundGroupMap, getGroupById,
+}: SoundCardProps) {
+  return (
+    <div className="relative">
+      <button
+        onClick={() => onToggleSound(sound)}
+        className={`w-full pl-3 pr-2 py-2.5 text-base font-pixel text-left cursor-pointer transition-none border-2 flex items-center gap-1 rounded-none
+          ${isPlaying
+            ? 'border-accent bg-accent/10 text-accent-pink animate-[card-dance_0.8s_steps(2)_infinite,border-glow_1.5s_steps(1)_infinite]'
+            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-pink hover:text-accent-pink hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_var(--accent-pink)] active:translate-x-0 active:translate-y-0 active:shadow-none'
+          }`}
+          style={isPlaying ? { willChange: 'transform' } : undefined}
+      >
+        {groupColor && (
+          <span className="w-2 h-2 shrink-0 rounded-none border border-bg-primary" style={{ backgroundColor: groupColor }} />
+        )}
+        <span className={`overflow-hidden text-ellipsis whitespace-nowrap flex-1 ${isPlaying ? 'text-accent-pink' : ''}`} title={sound.name}>{sound.name}</span>
+        {isRecThis ? (
+          <span className="shrink-0 text-xs font-pixel px-1 py-0.5 bg-accent-pink text-white rounded-none animate-[blink_0.5s_steps(1)_infinite]">
+            {recordingKeys.length > 0 ? recordingKeys.join('+') : '...'}
+          </span>
+        ) : shortcut ? (
+          <span
+            onClick={(e) => { e.stopPropagation(); onRemoveShortcut(shortcut); }}
+            className="shrink-0 text-xs font-pixel px-1 py-0.5 bg-accent text-black rounded-none cursor-pointer hover:bg-accent-red hover:text-white"
+            title={`${shortcut} — CLICK TO REMOVE`}
+          >
+            {shortcut}
+          </span>
+        ) : (
+          <span
+            onClick={(e) => { e.stopPropagation(); onRecordStart(sound.id); }}
+            className="shrink-0 text-xs font-pixel px-1 py-0.5 border border-border-default text-text-secondary rounded-none cursor-pointer hover:border-accent-pink hover:text-accent-pink"
+            title="REC"
+          >
+            REC
+          </span>
+        )}
+        {isPlaying && (
+          <span className="shrink-0 flex items-end gap-0.5 h-3.5">
+            <span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" />
+          </span>
+        )}
+        <span
+          data-menu-btn="true"
+          onClick={(e) => { e.stopPropagation(); onMenuClick(e, sound.id); }}
+          className={`shrink-0 w-4 h-4 border rounded-none flex items-center justify-center cursor-pointer
+            ${isMenuOpen
+              ? 'border-accent bg-accent text-black'
+              : 'border-border-default text-text-secondary hover:border-accent hover:text-accent'
+            }`}
+          title="MENU"
+        >
+          <svg shapeRendering="crispEdges" width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <rect x="3" y="5" width="18" height="3" rx="1" />
+            <rect x="3" y="10.5" width="18" height="3" rx="1" />
+            <rect x="3" y="16" width="18" height="3" rx="1" />
+          </svg>
+        </span>
+      </button>
+      {isMenuOpen && createPortal(
+        <div className="context-menu bg-bg-secondary border-2 border-accent rounded-none p-1.5 min-w-[170px]" style={{ position: 'fixed', top: menuPos.top + 'px', left: menuPos.left + 'px', zIndex: 9999 }}>
+          {/* Sound name header */}
+          <div className="px-2.5 py-1.5 text-base font-pixel text-accent truncate border-b-2 border-border-default mb-1" title={sound.name}>
+            {sound.name}
+          </div>
+          {/* Group actions */}
+          <div className="mb-1">
+            {groups.length > 0 && (
+              <>
+                {groups.map(g => {
+                  const isCurrentGroup = soundGroupMap[sound.id] === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => {
+                        if (isCurrentGroup) return;
+                        if (soundGroupMap[sound.id]) onRemoveFromGroup(sound.id, soundGroupMap[sound.id]);
+                        onAddToGroup(sound.id, g.id);
+                        onMenuClose();
+                      }}
+                      className={`w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-base rounded-none text-left cursor-pointer flex items-center gap-2 hover:border-border-default transition-none
+                        ${isCurrentGroup ? 'text-text-secondary' : 'text-text-primary'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-none shrink-0 ${isCurrentGroup ? 'opacity-40' : ''}`} style={{ backgroundColor: g.color }} />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      {isCurrentGroup && <span className="text-xs font-pixel text-text-secondary">●</span>}
+                    </button>
+                  );
+                })}
+                <div className="h-px bg-border-default my-1" />
+                {soundGroupMap[sound.id] && (
+                  <button
+                    onClick={() => { onRemoveFromGroup(sound.id, soundGroupMap[sound.id]); onMenuClose(); }}
+                    className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
+                  >
+                    <span className="font-pixel text-sm mr-1">✕</span> REMOVE
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              onClick={() => { onDeleteRequest?.(sound.id); }}
+              className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
+            >
+              <span className="font-pixel text-sm mr-1">✕</span> DELETE
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+});
+
+function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint }: SoundGridProps) {
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingKey, setRecordingKey] = useState<string[]>([]);
+  const [recordingSoundId, setRecordingSoundId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Stable ref-backed callbacks so React.memo on SoundCard actually works
+  const refs = useRef({ onToggleSound, onRemoveShortcut, onDeleteSound, onAddSoundToGroup, onRemoveSoundFromGroup, shortcuts, onAddShortcut });
+  useEffect(() => { refs.current = { onToggleSound, onRemoveShortcut, onDeleteSound, onAddSoundToGroup, onRemoveSoundFromGroup, shortcuts, onAddShortcut }; });
+  const stableToggleSound = useCallback((s: Sound) => refs.current.onToggleSound(s), []);
+  const stableRemoveShortcut = useCallback((k: string) => refs.current.onRemoveShortcut(k), []);
+  const stableDeleteSound = useCallback((id: string) => refs.current.onDeleteSound(id), []);
+  const stableAddToGroup = useCallback((id: string, gid: string) => refs.current.onAddSoundToGroup(id, gid), []);
+  const stableRemoveFromGroup = useCallback((id: string, gid: string) => refs.current.onRemoveSoundFromGroup(id, gid), []);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-menu-btn]') && !target.closest('.context-menu')) {
+        setActiveMenu(null);
+        cancelRecording();
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
+
+  const cancelRecording = () => { (window as any).electron?.ipcRenderer?.send('set-recording-mode', false); setIsRecording(false); setRecordingKey([]); setRecordingSoundId(null); };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isRecording || !recordingSoundId) return;
+      if (e.repeat) return;
+      const keys: string[] = [];
+      if (e.ctrlKey || e.metaKey) keys.push('Ctrl');
+      if (e.shiftKey) keys.push('Shift');
+      if (e.altKey) keys.push('Alt');
+      let key = e.key;
+      if (key === ' ') key = 'Space';
+      else if (key === 'Escape') { cancelRecording(); e.preventDefault(); return; }
+      const validKeys = ['Enter', 'Space', 'Tab', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`), ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
+      if (key.length === 1 || validKeys.includes(key)) { if (!keys.includes(key)) keys.push(key); }
+      setRecordingKey([...keys]);
+      if (keys.length > 0 && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        const shortcut = keys.join('+');
+        const existing = Object.entries(shortcuts).find(([, sid]) => sid === recordingSoundId);
+        if (existing) onRemoveShortcut(existing[0]);
+        onAddShortcut(recordingSoundId, shortcut);
+        cancelRecording();
+      }
+      e.preventDefault();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isRecording, recordingSoundId, shortcuts, onAddShortcut, onRemoveShortcut]);
+
+
+  const handleMenuClick = (e: React.MouseEvent, soundId: string) => {
+    e.stopPropagation();
+    if (activeMenu === soundId) { setActiveMenu(null); return; }
+    const btn = e.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    const menuW = 170, menuH = 200;
+    let top = rect.bottom + 4;
+    let left = rect.right - menuW;
+    if (top + menuH > window.innerHeight) top = rect.top - menuH - 4;
+    if (left < 4) left = 4;
+    if (left + menuW > window.innerWidth - 4) left = window.innerWidth - menuW - 4;
+    if (top < 4) top = 4;
+    setMenuPos({ top, left });
+    setActiveMenu(soundId);
+  };
+
+  const getSoundShortcut = (soundId: string) => {
+    return Object.entries(shortcuts).find(([, id]) => id === soundId)?.[0];
+  };
+
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto p-3" ref={gridRef} tabIndex={0}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
+          {sounds.map(sound => {
+            const gid = soundGroupMap[sound.id];
+            return (
+              <SoundCard
+                key={sound.id}
+                sound={sound}
+                isPlaying={playingSound === sound.id}
+                shortcut={getSoundShortcut(sound.id)}
+                isMenuOpen={activeMenu === sound.id}
+                isRecThis={isRecording && recordingSoundId === sound.id}
+                recordingKeys={recordingKey}
+                groupColor={gid ? getGroupById(gid)?.color ?? null : null}
+                menuPos={menuPos}
+                onToggleSound={stableToggleSound}
+                onRemoveShortcut={stableRemoveShortcut}
+                onRecordStart={(sid) => { (window as any).electron?.ipcRenderer?.send('set-recording-mode', true); setRecordingSoundId(sid); setIsRecording(true); setRecordingKey([]); }}
+                onMenuClick={handleMenuClick}
+                onAddToGroup={stableAddToGroup}
+                onRemoveFromGroup={stableRemoveFromGroup}
+                onDeleteSound={stableDeleteSound}
+                onDeleteRequest={(id) => { setActiveMenu(null); setConfirmDeleteId(id); }}
+                onMenuClose={() => setActiveMenu(null)}
+                groups={groups}
+                soundGroupMap={soundGroupMap}
+                getGroupById={getGroupById}
+              />
+            );
+          })}
+        </div>
+        {sounds.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-[140px] text-text-secondary">
+            <div className="mb-2 flex items-center gap-2">
+              <Alien size={28} color="#5a5a90" />
+              <Rocket size={28} color="#6a6aa0" />
+              <Saturn size={28} color="#7a7ab0" />
+            </div>
+            <span className="text-base font-pixel">{emptyHint || 'NO MATCHING SOUNDS'}</span>
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="DELETE SOUND"
+        message="DELETE THIS SOUND?"
+        danger
+        confirmLabel="DELETE"
+        onConfirm={() => {
+          if (confirmDeleteId) onDeleteSound(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+    </>
+  );
+}
+
+export default SoundGrid;

@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'VonwaonBitmap';
+  src: url('/fonts/VonwaonBitmap-16px.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+:root {
+  --bg-primary: #070312;
+  --bg-secondary: #0f0920;
+  --bg-tertiary: #171030;
+  --border-default: #28204a;
+  --text-primary: #e8e6ff;
+  --text-secondary: #7b72b8;
+  --accent: #ff2ea0;
+  --accent-cyan: #00eeff;
+  --accent-red: #ff4466;
+  --accent-green: #00ff77;
+  --accent-gold: #ffcc33;
+  --accent-pink: #ff7ac8;
+  --accent-purple: #8833ff;
+}
+
+html, body, #root { width: 100%; height: 100%; }
+
+body {
+  font-family: 'VonwaonBitmap', 'PingFang SC', 'Microsoft YaHei', monospace;
+  background: transparent;
+  overflow: hidden;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  text-shadow: 1px 0 0 currentColor, -0.5px 0 0 currentColor;
+}
+
+/* CRT scanlines */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(12, 12, 24, 0.04) 3px,
+    rgba(12, 12, 24, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 99999;
+}
+
+/* Scrollbar — thin retro style */
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border: none;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Standard CSS scrollbar (modern Chromium/Electron) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+/* Volume slider */
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-default);
+  border-radius: 0;
+  outline: none;
+  image-rendering: pixelated;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 18px;
+  background: var(--accent);
+  border: 2px solid var(--bg-primary);
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+.volume-slider::-webkit-slider-thumb:hover { background: var(--accent-gold); }
+
+/* Focus ring — blocky */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Bouncing equalizer bars */
+@keyframes bounce-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  25% { transform: scaleY(1); }
+  50% { transform: scaleY(0.3); }
+  75% { transform: scaleY(0.9); }
+}
+
+@keyframes bounce-bar2 {
+  0%, 100% { transform: scaleY(0.7); }
+  30% { transform: scaleY(0.2); }
+  60% { transform: scaleY(1); }
+  85% { transform: scaleY(0.5); }
+}
+
+@keyframes bounce-bar3 {
+  0%, 100% { transform: scaleY(0.3); }
+  20% { transform: scaleY(0.9); }
+  55% { transform: scaleY(0.2); }
+  70% { transform: scaleY(1); }
+}
+
+@keyframes bounce-bar4 {
+  0%, 100% { transform: scaleY(0.6); }
+  35% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+  80% { transform: scaleY(0.4); }
+}
+
+/* Card dance — subtle rhythmic float (pixel steps for retro feel) */
+@keyframes card-dance {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(-2px); }
+}
+
+/* Border glow — simple color pulse (no box-shadow, keeps GPU happy) */
+@keyframes border-glow {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: var(--accent-pink); }
+}
+
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Equalizer bars inside playing card */
+.eq-bar {
+  width: 3px;
+  background: var(--accent-pink);
+  transform-origin: bottom;
+}
+.eq-bar:nth-child(1) { animation: bounce-bar 0.6s ease-in-out infinite; height: 100%; }
+.eq-bar:nth-child(2) { animation: bounce-bar2 0.5s ease-in-out infinite; height: 100%; }
+.eq-bar:nth-child(3) { animation: bounce-bar3 0.7s ease-in-out infinite; height: 100%; }
+.eq-bar:nth-child(4) { animation: bounce-bar4 0.55s ease-in-out infinite; height: 100%; }
+
+

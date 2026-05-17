@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <rect width="64" height="64" fill="#1a1a2e" rx="10"/>
+  <!-- Cassette body outline -->
+  <rect x="8" y="14" width="48" height="36" rx="4" fill="#0cf"/>
+  <rect x="12" y="18" width="40" height="28" rx="3" fill="#0ab"/>
+  <!-- Left reel window -->
+  <rect x="16" y="22" width="12" height="12" rx="6" fill="#1a1a2e"/>
+  <rect x="18" y="24" width="8" height="8" rx="4" fill="#0cf"/>
+  <rect x="20" y="26" width="4" height="4" rx="2" fill="#5ce"/>
+  <!-- Right reel window -->
+  <rect x="36" y="22" width="12" height="12" rx="6" fill="#1a1a2e"/>
+  <rect x="38" y="24" width="8" height="8" rx="4" fill="#0cf"/>
+  <rect x="40" y="26" width="4" height="4" rx="2" fill="#5ce"/>
+  <!-- Tape path between reels -->
+  <rect x="28" y="28" width="8" height="2" fill="#1a1a2e"/>
+  <rect x="28" y="32" width="8" height="2" fill="#1a1a2e"/>
+  <!-- Bottom label area -->
+  <rect x="16" y="40" width="32" height="4" rx="1" fill="#1a1a2e"/>
+</svg>

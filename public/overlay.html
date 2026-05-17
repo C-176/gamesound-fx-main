@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+  }
+
+  #now-playing {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 0.3s ease-out;
+    opacity: 0;
+  }
+  #now-playing.active { opacity: 1; }
+
+  .np-box {
+    border: 2px solid #ff4dc7;
+    border-left: none;
+    background: rgba(18, 18, 31, 0.95);
+    padding: 12px 16px 12px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 4px 0 12px rgba(255, 77, 199, 0.3);
+  }
+
+  .eq-bars { display: flex; align-items: flex-end; gap: 1px; height: 24px; }
+  .eq-bar { width: 3px; background: #ff4dc7; }
+
+  .np-name {
+    color: #ff4dc7;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+
+  #picker {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    z-index: 100;
+    border: 2px solid #ff4dc7;
+    background: rgba(18, 18, 31, 0.97);
+    padding: 12px;
+    min-width: 260px;
+    max-width: 340px;
+    box-shadow: 4px 0 12px rgba(255, 77, 199, 0.3);
+    animation: slide-up 0.2s ease-out;
+  }
+
+  @keyframes slide-up {
+    0% { opacity: 0; transform: translateY(12px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+  <div id="now-playing">
+    <div class="np-box">
+      <div class="eq-bars">
+        <div class="eq-bar" style="height:100%;animation:b1 .6s ease-in-out infinite"></div>
+        <div class="eq-bar" style="height:100%;animation:b2 .5s ease-in-out infinite"></div>
+        <div class="eq-bar" style="height:100%;animation:b3 .7s ease-in-out infinite"></div>
+        <div class="eq-bar" style="height:100%;animation:b4 .55s ease-in-out infinite"></div>
+      </div>
+      <span class="np-name" id="np-name"></span>
+    </div>
+  </div>
+
+  <div id="picker" style="display:none;">
+    <div id="picker-title" style="color:#ff4dc7;font-size:12px;margin-bottom:8px;"></div>
+    <div id="picker-choices"></div>
+    <div id="picker-hint" style="color:#666;font-size:11px;margin-top:8px;text-align:center;">` + 1/2/3 TO SELECT</div>
+  </div>
+
+  <script>
+    (function(){
+      // EQ bar animations (injected to avoid cluttering head)
+      var s = document.createElement('style');
+      s.textContent = [
+        '@keyframes b1{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
+        '@keyframes b2{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(.8)}}',
+        '@keyframes b3{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}',
+        '@keyframes b4{0%,100%{transform:scaleY(.6)}50%{transform:scaleY(.9)}}',
+      ].join('\n');
+      document.head.appendChild(s);
+
+      var electron = window.electron;
+      if (!electron || !electron.ipcRenderer) return;
+
+      var hideTimer = null;
+
+      electron.ipcRenderer.on('now-playing-changed', function(_, soundName) {
+        var el = document.getElementById('now-playing');
+        var nameEl = document.getElementById('np-name');
+        if (soundName) {
+          nameEl.textContent = soundName;
+          el.classList.add('active');
+          if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        } else {
+          hideTimer = setTimeout(function() {
+            el.classList.remove('active');
+            hideTimer = null;
+          }, 500);
+        }
+      });
+
+      // Picker: render choices with event label as title
+      function renderPicker(choices, eventLabel) {
+        var titleEl = document.getElementById('picker-title');
+        var choicesEl = document.getElementById('picker-choices');
+        if (!titleEl || !choicesEl) return;
+        titleEl.textContent = '◆ ' + (eventLabel || 'SELECT SOUND');
+        choicesEl.innerHTML = '';
+        for (var i = 0; i < choices.length; i++) {
+          var div = document.createElement('div');
+          div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:2px solid #ff4dc7;background:rgba(255,77,199,0.08);margin-bottom:4px;';
+          var num = document.createElement('span');
+          num.style.cssText = 'color:#ff4dc7;font-size:14px;font-weight:bold;width:20px;';
+          num.textContent = (i + 1) + '.';
+          var name = document.createElement('span');
+          name.style.cssText = 'color:#e0e0ff;font-size:14px;';
+          name.textContent = choices[i].name || choices[i].id || '???';
+          div.appendChild(num);
+          div.appendChild(name);
+          choicesEl.appendChild(div);
+        }
+      }
+
+      function updatePickerHint(prefixKeyName) {
+        var hint = document.getElementById('picker-hint');
+        if (hint) hint.textContent = (prefixKeyName || '`') + ' + 1/2/3 TO SELECT';
+      }
+
+      electron.ipcRenderer.on('valorant-picker-show', function(_, data) {
+        var picker = document.getElementById('picker');
+        if (!picker) return;
+        renderPicker(data.choices, data.eventLabel);
+        updatePickerHint(data.prefixKeyName);
+        picker.style.display = 'block';
+      });
+
+      electron.ipcRenderer.on('valorant-picker-update', function(_, data) {
+        renderPicker(data.choices, data.eventLabel);
+        if (data.prefixKeyName) updatePickerHint(data.prefixKeyName);
+      });
+
+      electron.ipcRenderer.on('valorant-picker-hide', function() {
+        var picker = document.getElementById('picker');
+        if (picker) picker.style.display = 'none';
+      });
+    })();
+  </script>
+</body>
+</html>
