@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Globe, Satellite, Cassette, PlayTriangle, StopSquare } from './PixelIcons';
+import { Globe, Satellite, Cassette, PlayTriangle, StopSquare } from './ModernIcons';
 import { copy, themeColor } from '../ui/copy';
 
 interface CapturedSound {
@@ -210,7 +210,7 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
           </button>
           {onClose && (
             <button onClick={onClose} className="w-8 h-8 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
-              <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
             </button>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { PixelSpeaker, PixelMuted, MusicNote } from './PixelIcons';
+import { PixelSpeaker, PixelMuted, MusicNote } from './ModernIcons';
 import { copy } from '../ui/copy';
 
 interface StatusBarProps {
@@ -104,9 +104,9 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
           }`}
       >
         {isPlaying ? (
-          <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="3" width="6" height="18"/><rect x="14" y="3" width="6" height="18"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
         ) : (
-          <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,2 20,12 6,22"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         )}
       </button>
 

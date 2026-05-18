@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Skull } from './PixelIcons';
+import { Skull } from './ModernIcons';
 
 interface ConfirmModalProps {
   open: boolean;

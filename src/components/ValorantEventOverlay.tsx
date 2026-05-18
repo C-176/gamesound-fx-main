@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Satellite } from './PixelIcons';
+import { Satellite } from './ModernIcons';
 import { VALORANT_EVENT_LABELS, type ValorantEvent, type ValorantEventPayload } from '../valorant/types';
 import { sounds as builtinSounds } from '../data/sounds';
 

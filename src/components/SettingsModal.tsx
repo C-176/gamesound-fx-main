@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Sound } from '../data/sounds';
-import { Lightning, Skull, Cassette, UFO, Rocket, Satellite } from './PixelIcons';
+import { Lightning, Skull, Cassette, UFO, Rocket, Satellite } from './ModernIcons';
 import ConfirmModal from './ConfirmModal';
 import SectionTitle from './ui/SectionTitle';
 import { copy, themeColor } from '../ui/copy';
@@ -97,7 +97,7 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
               ? 'border-border-default text-text-secondary/50 cursor-not-allowed'
               : 'border-border-default text-text-secondary cursor-pointer hover:border-accent-red hover:text-accent-red'
           }`}>
-            <svg shapeRendering="crispEdges" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
           </button>
         </div>
 
@@ -120,7 +120,7 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
                     <span className="text-sm text-text-primary">{copy.settings.playPauseLabel}</span>
                   </div>
                   <button onClick={onClearStopShortcut} className="w-7 h-7 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
-                    <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                   </button>
                 </div>
               ) : (
@@ -220,7 +220,7 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
                       <span className="text-sm text-text-primary">{getSoundName(soundId)}</span>
                     </div>
                     <button onClick={() => onRemoveShortcut(shortcut)} className="w-7 h-7 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
-                      <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                     </button>
                   </div>
                 ))

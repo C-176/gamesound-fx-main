@@ -1,5 +1,5 @@
 import type { Category } from '../data/sounds';
-import { Gamepad, Globe, PixelStar } from './PixelIcons';
+import { Gamepad, Globe, PixelStar } from './ModernIcons';
 
 interface CategoryTabsProps {
   categories: Category[];

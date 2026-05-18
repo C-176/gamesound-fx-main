@@ -1,4 +1,4 @@
-import { RetroTV, Satellite, UFO } from './PixelIcons';
+import { RetroTV, Satellite, UFO } from './ModernIcons';
 import { copy, themeColor } from '../ui/copy';
 
 interface TitleBarProps {
@@ -53,7 +53,7 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
           )}
           <span className="w-px h-5 bg-border-bright mx-0.5" aria-hidden />
           <button onClick={onSettingsClick} className="win-btn rounded-lg" title={copy.settings.title}>
-            <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="9" width="6" height="6" />
               <rect x="7" y="7" width="10" height="10" />
               <rect x="5" y="11" width="4" height="2" />
@@ -63,12 +63,12 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
             </svg>
           </button>
           <button onClick={minimize} className="win-btn rounded-lg" title="最小化">
-            <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14"/>
             </svg>
           </button>
           <button onClick={close} className="win-btn win-btn-danger rounded-lg text-accent-red" title="关闭">
-            <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 6l12 12M18 6l-12 12"/>
             </svg>
           </button>

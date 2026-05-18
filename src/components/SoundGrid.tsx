@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Sound, Group } from '../data/sounds';
-import { PixelGhost, Alien, Rocket, Saturn, Checkmark } from './PixelIcons';
+import { Alien, Rocket, Saturn, Checkmark } from './ModernIcons';
 import ConfirmModal from './ConfirmModal';
 import { copy } from '../ui/copy';
 
@@ -101,10 +101,8 @@ const SoundCard = memo(function SoundCard({
             }`}
           title={copy.sound.menu}
         >
-          <svg shapeRendering="crispEdges" width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-            <rect x="3" y="5" width="18" height="3" rx="1" />
-            <rect x="3" y="10.5" width="18" height="3" rx="1" />
-            <rect x="3" y="16" width="18" height="3" rx="1" />
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </span>
       </button>

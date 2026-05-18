@@ -1,5 +1,5 @@
 import type { Group } from '../data/sounds';
-import { Folder } from './PixelIcons';
+import { Folder } from './ModernIcons';
 import { copy, themeColor } from '../ui/copy';
 
 interface GroupFilterBarProps {

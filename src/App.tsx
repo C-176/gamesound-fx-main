@@ -9,7 +9,7 @@ import OnlineSoundBrowser from './components/OnlineSoundBrowser';
 import GroupManager from './components/GroupManager';
 import GroupFilterBar from './components/GroupFilterBar';
 import ValorantPanel from './components/ValorantPanel';
-import { Cassette, Globe } from './components/PixelIcons';
+import { Cassette, Globe } from './components/ModernIcons';
 import { copy, themeColor } from './ui/copy';
 
 
@@ -1080,7 +1080,7 @@ function App() {
             <div className="flex items-center gap-2">
               <div className="relative flex-1 min-w-0">
                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden>
-                  <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="10" cy="10" r="6" />
                     <path d="M15 15l5 5" />
                   </svg>
@@ -1097,7 +1097,7 @@ function App() {
                     onClick={() => setSearchQuery('')}
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-text-secondary hover:text-accent cursor-pointer"
                   >
-                    <svg shapeRendering="crispEdges" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                   </button>
                 )}
               </div>

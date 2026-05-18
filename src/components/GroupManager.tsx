@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Group, Sound } from '../data/sounds';
-import { Cassette, Folder, Checkmark, CloseX } from './PixelIcons';
+import { Cassette, Folder, Checkmark, CloseX } from './ModernIcons';
 import ConfirmModal from './ConfirmModal';
 import SectionTitle from './ui/SectionTitle';
 import { copy, themeColor } from '../ui/copy';
@@ -143,10 +143,10 @@ function GroupManager({ onClose, groups, onAddGroup, onDeleteGroup, onUpdateGrou
                         {!isDef && (
                           <>
                             <button onClick={() => handleStartEdit(group)} className="w-6 h-6 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent hover:text-accent transition-none rounded-lg" title={copy.group.edit}>
-                              <svg shapeRendering="crispEdges" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><polyline points="4,20 8,20 20,8 16,4 4,16" /><line x1="16" y1="4" x2="20" y2="8" /></svg>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4,20 8,20 20,8 16,4 4,16" /><line x1="16" y1="4" x2="20" y2="8" /></svg>
                             </button>
                             <button onClick={() => setDeleteConfirmId(group.id)} className="w-6 h-6 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg" title={copy.common.delete}>
-                              <svg shapeRendering="crispEdges" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                             </button>
                           </>
                         )}

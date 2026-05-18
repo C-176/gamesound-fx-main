@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Satellite, PlayTriangle, StopSquare, CloseX, Checkmark } from './PixelIcons';
+import { Satellite, PlayTriangle, StopSquare, CloseX, Checkmark } from './ModernIcons';
 import { VALORANT_EVENTS, VALORANT_EVENT_LABELS, type ValorantEvent, type ValorantStatus } from '../valorant/types';
 import { sounds as builtinSounds } from '../data/sounds';
 import SectionTitle from './ui/SectionTitle';
