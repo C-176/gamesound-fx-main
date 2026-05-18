@@ -22,6 +22,15 @@ jobs:
 
       - run: npm ci
 
+      # Sync package.json version with git tag (strip leading v)
+      - name: Sync version from git tag
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          VER="${TAG#v}"
+          echo "Tag: $TAG → Version: $VER"
+          npm version "$VER" --no-git-tag-version --allow-same-version
+
       - name: Generate icons
         run: node scripts/generate-icons.js
 
