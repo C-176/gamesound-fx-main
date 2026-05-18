@@ -43,27 +43,19 @@ function NowPlayingOverlay({ playingSound, allSounds }: NowPlayingOverlayProps) 
 
   return (
     <div
-      className="fixed left-0 top-1/2 -translate-y-1/2 z-[9999] pointer-events-none"
-      style={{
-        transition: 'opacity 0.3s ease-out',
-        opacity: playingSound ? 1 : 0,
-      }}
+      className={`fixed left-3 bottom-3 z-[9999] pointer-events-none transition-opacity duration-300 ease-out tracking-[1px] flex items-center gap-2 ${
+        playingSound ? 'opacity-100' : 'opacity-0'
+      }`}
     >
-      <div className="border-2 border-l-0 border-accent-pink bg-bg-secondary pl-3 pr-4 py-3 rounded-none tracking-[1px]"
-        style={{ boxShadow: '3px 0 0 rgba(255, 122, 200, 0.25)' }}>
-        <div className="flex items-center gap-3">
-          {/* EQ bars */}
-          <div className="flex items-end gap-px h-6">
-            <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar 0.6s ease-in-out infinite' }} />
-            <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar2 0.5s ease-in-out infinite' }} />
-            <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar3 0.7s ease-in-out infinite' }} />
-            <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar4 0.55s ease-in-out infinite' }} />
-          </div>
-          <span className="text-sm font-medium text-accent-pink whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">
-            {currentName}
-          </span>
-        </div>
+      <div className="flex items-end gap-px h-4">
+        <div className="eq-bar w-[2px] bg-accent-pink" />
+        <div className="eq-bar w-[2px] bg-accent-pink" />
+        <div className="eq-bar w-[2px] bg-accent-pink" />
+        <div className="eq-bar w-[2px] bg-accent-pink" />
       </div>
+      <span className="text-sm text-accent-pink whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+        {currentName}
+      </span>
     </div>
   );
 }

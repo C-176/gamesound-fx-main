@@ -88,7 +88,10 @@ function App() {
   const [soundGroupMap, setSoundGroupMap] = useState<Record<string, string>>({});
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(() => {
+    const saved = localStorage.getItem('lastGroupFilter');
+    return saved || null;
+  });
   const [isMuted, setIsMuted] = useState(false);
   const prevVolumeRef = useRef(0.8);
   const [rightPanel, setRightPanel] = useState<'none' | 'valorant' | 'sniffer'>('none');
@@ -199,6 +202,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('stopShortcut', stopShortcut);
   }, [stopShortcut]);
+
+  useEffect(() => {
+    if (activeGroupFilter) {
+      localStorage.setItem('lastGroupFilter', activeGroupFilter);
+    } else {
+      localStorage.removeItem('lastGroupFilter');
+    }
+  }, [activeGroupFilter]);
 
   useEffect(() => {
     const electron = (window as any).electron;
