@@ -132,27 +132,19 @@ uIOhook.on('keydown', (e) => {
     keys.push(keyName);
     const shortcutStr = keys.join('+');
 
-    // Try exact match first.
-    let matchedShortcut = shortcutStr;
-    if (!soundShortcutMap.has(matchedShortcut) && !(stopShortcutKey === matchedShortcut)) {
-      // Chinese IME often injects Alt onto key events. If exact match fails and
-      // only Alt is held alongside the key, try stripping Alt.
-      if (keys.length > 1 && keys.includes('Alt') && keys.every(k => k === 'Alt' || k === keys[keys.length - 1])) {
-        const plainKey = keys[keys.length - 1];
-        if (soundShortcutMap.has(plainKey) || stopShortcutKey === plainKey) {
-          matchedShortcut = plainKey;
-        }
+    // Progressive matching: try from longest (Ctrl+Shift+7) down to
+    // shortest (7).  This ensures that when both Ctrl+7 and 7 are
+    // registered, pressing Ctrl+7 matches Ctrl+7, not 7.
+    let matchedShortcut: string | undefined;
+    for (let i = 0; i < keys.length; i++) {
+      const candidate = keys.slice(i).join('+');
+      if (soundShortcutMap.has(candidate) || stopShortcutKey === candidate) {
+        matchedShortcut = candidate;
+        break;
       }
     }
 
-    // Enforce: if any modifier (Ctrl/Shift/Meta) is held, don't match a
-    // modifier-less shortcut.  This prevents Ctrl+7 from accidentally
-    // triggering a shortcut registered as plain 7.
-    if (matchedShortcut !== shortcutStr && !matchedShortcut.includes('+')) {
-      if (keys.some(k => k === 'Ctrl' || k === 'Shift' || k === 'Meta')) {
-        matchedShortcut = shortcutStr;  // reject the fallback
-      }
-    }
+    if (!matchedShortcut) return;
 
     const soundId = soundShortcutMap.get(matchedShortcut);
     if (soundId && mainWindow) {
@@ -394,9 +386,14 @@ function detachSoundBrowserFromMain() {
   soundBrowserFixedSize = null;
 }
 
-function attachSoundBrowserToMain(_browser: BrowserWindow, width: number, height: number) {
+function attachSoundBrowserToMain(browser: BrowserWindow, width: number, height: number) {
   detachSoundBrowserFromMain();
   soundBrowserFixedSize = { width, height };
+  const updateBrowserSizeCache = () => {
+    if (!soundBrowserWindow || soundBrowserWindow.isDestroyed()) return;
+    const [w, h] = soundBrowserWindow.getSize();
+    soundBrowserFixedSize = { width: w, height: h };
+  };
   syncSoundBrowserPosition = () => {
     if (!soundBrowserWindow || soundBrowserWindow.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return;
     if (!soundBrowserFixedSize) return;
@@ -408,6 +405,8 @@ function attachSoundBrowserToMain(_browser: BrowserWindow, width: number, height
     );
     soundBrowserWindow.setBounds(bounds);
   };
+  browser.on('resize', updateBrowserSizeCache);
+  browser.on('resized', updateBrowserSizeCache);
   syncSoundBrowserPosition();
   mainWindow?.on('move', syncSoundBrowserPosition);
   mainWindow?.on('moved', syncSoundBrowserPosition);
@@ -1070,9 +1069,11 @@ app.whenReady().then(() => {
     soundBrowserWindow = new BrowserWindow({
       width: browserWidth,
       height: browserHeight,
+      minWidth: 320,
+      minHeight: 300,
       title: '音效浏览器 - 爱给网',
       frame: false,
-      resizable: false,
+      resizable: true,
       useContentSize: true,
       webPreferences: {
         contextIsolation: true,
