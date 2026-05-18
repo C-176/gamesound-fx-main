@@ -132,16 +132,25 @@ uIOhook.on('keydown', (e) => {
     keys.push(keyName);
     const shortcutStr = keys.join('+');
 
-    // Try exact match first. If not found, try stripping Alt (Chinese IME often
-    // injects Alt modifier onto key events even when user presses key alone).
-    // Also try the plain key name as last resort.
+    // Try exact match first.
     let matchedShortcut = shortcutStr;
     if (!soundShortcutMap.has(matchedShortcut) && !(stopShortcutKey === matchedShortcut)) {
-      if (keys.length > 1 && keys.includes('Alt')) {
+      // Chinese IME often injects Alt onto key events. If exact match fails and
+      // only Alt is held alongside the key, try stripping Alt.
+      if (keys.length > 1 && keys.includes('Alt') && keys.every(k => k === 'Alt' || k === keys[keys.length - 1])) {
         const plainKey = keys[keys.length - 1];
         if (soundShortcutMap.has(plainKey) || stopShortcutKey === plainKey) {
           matchedShortcut = plainKey;
         }
+      }
+    }
+
+    // Enforce: if any modifier (Ctrl/Shift/Meta) is held, don't match a
+    // modifier-less shortcut.  This prevents Ctrl+7 from accidentally
+    // triggering a shortcut registered as plain 7.
+    if (matchedShortcut !== shortcutStr && !matchedShortcut.includes('+')) {
+      if (keys.some(k => k === 'Ctrl' || k === 'Shift' || k === 'Meta')) {
+        matchedShortcut = shortcutStr;  // reject the fallback
       }
     }
 
