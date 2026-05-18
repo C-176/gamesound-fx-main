@@ -1,7 +1,7 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage, globalShortcut } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { uIOhook, UiohookKey } from 'uiohook-napi';
+import { UiohookKey } from 'uiohook-napi';
 import { ValorantLogDetector } from './valorant/log-detector';
 import type { ValorantEventPayload, ValorantStatus } from './valorant/types';
 
@@ -23,8 +23,6 @@ const SOUND_BROWSER_REQUEST_FILTER = {
 let soundBrowserWebRequestHandler: ((details: Electron.OnBeforeRequestListenerDetails, callback: (response: Electron.CallbackResponse) => void) => void) | null = null;
 let valorantDetector: ValorantLogDetector | null = null;
 let pendingPicker: { choices: Array<{ id: string; name: string }>; timer: ReturnType<typeof setTimeout> } | null = null;
-let capsLockHeld = false;
-let pickerPrefixKeyCode: number = UiohookKey.Backquote;
 let pickerPrefixKeyName = '`';
 let pickerPrefixHeld = false;
 let isRecordingShortcut = false;
@@ -74,14 +72,7 @@ const KEY_NAME_MAP: Record<number, string> = {
   [UiohookKey.Slash]: '/',
 };
 
-const MODIFIER_KEYCODES = new Set<number>([
-  UiohookKey.Ctrl, UiohookKey.CtrlRight,
-  UiohookKey.Alt, UiohookKey.AltRight,
-  UiohookKey.Shift, UiohookKey.ShiftRight,
-  UiohookKey.Meta, UiohookKey.MetaRight,
-]);
-
-// 系统快捷键（通过 uiohook 处理，确保全屏游戏下仍可用）
+// 系统快捷键（通过 koffi 轮询处理，全屏游戏下仍可用）
 const systemShortcutActions: Record<string, () => void> = {
   'Ctrl+Shift+Tab': () => {
     if (!mainWindow) return;
@@ -105,102 +96,7 @@ const systemShortcutActions: Record<string, () => void> = {
   },
 };
 
-// uiohook 低层键盘钩子处理 — 全屏游戏下仍能捕获快捷键
-
-uIOhook.on('keydown', (e) => {
-  try {
-    if (MODIFIER_KEYCODES.has(e.keycode)) return;
-    // Skip shortcut processing while user is recording a shortcut in settings
-    if (isRecordingShortcut) return;
-    if (e.keycode === UiohookKey.CapsLock) {
-      capsLockHeld = true;
-      return;
-    }
-    if (e.keycode === pickerPrefixKeyCode) {
-      pickerPrefixHeld = true;
-      return;
-    }
-    const keys: string[] = [];
-    if (e.ctrlKey) keys.push('Ctrl');
-    if (e.shiftKey) keys.push('Shift');
-    if (e.altKey) keys.push('Alt');
-    if (e.metaKey) keys.push('Meta');
-    const keyName = KEY_NAME_MAP[e.keycode];
-    if (!keyName) {
-      return;
-    }
-    keys.push(keyName);
-    const shortcutStr = keys.join('+');
-
-    // Progressive matching: try from longest (Ctrl+Shift+7) down to
-    // shortest (7).  This ensures that when both Ctrl+7 and 7 are
-    // registered, pressing Ctrl+7 matches Ctrl+7, not 7.
-    let matchedShortcut: string | undefined;
-    for (let i = 0; i < keys.length; i++) {
-      const candidate = keys.slice(i).join('+');
-      if (soundShortcutMap.has(candidate) || stopShortcutKey === candidate) {
-        matchedShortcut = candidate;
-        break;
-      }
-    }
-
-    if (!matchedShortcut) return;
-
-    const soundId = soundShortcutMap.get(matchedShortcut);
-    if (soundId && mainWindow) {
-      console.log('[uiohook] sending shortcut-triggered:', soundId);
-      mainWindow.setTitle(`[SHORTCUT] ${matchedShortcut} -> ${soundId}`);
-      setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 2000);
-      mainWindow.webContents.send('shortcut-triggered', soundId);
-    }
-
-    if (stopShortcutKey && matchedShortcut === stopShortcutKey && mainWindow) {
-      console.log('[uiohook] sending stop-shortcut-triggered');
-      mainWindow.setTitle(`[STOP] ${matchedShortcut}`);
-      setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 2000);
-      mainWindow.webContents.send('stop-shortcut-triggered');
-    }
-
-    // Valorant picker mode: prefix key + 1-9 selects from available choices
-    if (pendingPicker && pickerPrefixHeld) {
-      const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].indexOf(keyName);
-      if (idx >= 0 && idx < pendingPicker.choices.length) {
-        console.log('[uiohook] picker selected:', idx, pendingPicker.choices[idx].name);
-        clearTimeout(pendingPicker.timer);
-        pendingPicker.timer = setTimeout(() => {
-          overlayWindow?.webContents.send('valorant-picker-hide');
-          pendingPicker = null;
-        }, 3000);
-        const choice = pendingPicker.choices[idx];
-        mainWindow?.webContents.send('shortcut-triggered', choice.id);
-        // Don't close picker — user can keep selecting
-        return;
-      }
-    }
-
-    const action = systemShortcutActions[matchedShortcut];
-    if (action) {
-      console.log('[uiohook] system action triggered:', shortcutStr);
-      action();
-    }
-
-    // Debug: F12 always shows title regardless of focus — to verify uiohook is alive
-    if (shortcutStr === 'F12' && mainWindow) {
-      mainWindow.setTitle('[UIOHOOK ALIVE] F12 pressed at ' + Date.now());
-      setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 3000);
-    }
-  } catch (err) {
-    console.error('[uiohook] ERROR in keydown handler:', err);
-  }
-});
-uIOhook.on('keyup', (e) => {
-  if (e.keycode === UiohookKey.CapsLock) {
-    capsLockHeld = false;
-  }
-  if (e.keycode === pickerPrefixKeyCode) {
-    pickerPrefixHeld = false;
-  }
-});
+// ─── 键盘钩子已替换为 koffi GetAsyncKeyState 轮询 ───
 const capturedSounds: Record<string, { url: string; name: string; timestamp: number }> = {};
 
 // ─── Win32 polling fallback (works in exclusive fullscreen games) ───
@@ -508,63 +404,129 @@ function handlePollerKeyEvent(vk: number, mask: number) {
 }
 
 function startKeyPolling() {
-  // Try koffi-based GetAsyncKeyState polling first
-  if (getAsyncKeyState) {
-    console.log('[poll] koffi-based polling started');
-    pollingTimer = setInterval(() => {
-      try {
-        if (isRecordingShortcut) return;
-        const keysToCheck: string[] = [];
-        for (const k of soundShortcutMap.keys()) keysToCheck.push(k);
-        if (stopShortcutKey && stopShortcutKey !== '') keysToCheck.push(stopShortcutKey);
+  // koffi-based GetAsyncKeyState polling (keyboard only, no mouse interference)
+  if (!getAsyncKeyState) {
+    // Fallback: C# helper EXE
+    const pollerExePath = getPollerExePath();
+    if (fs.existsSync(pollerExePath)) {
+      debugLog('Starting C# polling helper from: ' + pollerExePath);
+      startExePolling(pollerExePath);
+      return;
+    }
+    debugLog('C# helper not found at: ' + pollerExePath);
 
-        const activeMask = readModifierMask();
+    // Last resort: PowerShell-based polling
+    const psPath = getPollHelperPath();
+    if (!fs.existsSync(psPath)) {
+      debugLog('PowerShell helper not found at: ' + psPath);
+      return;
+    }
+    debugLog('Starting PowerShell polling helper from: ' + psPath);
+    startExePolling(psPath);
+    return;
+  }
 
-        for (const shortcutStr of keysToCheck) {
-          const parts = shortcutStr.split('+');
-          const keyName = parts[parts.length - 1];
-          const vkKey = VK_MAP[keyName];
-          if (!vkKey) continue;
+  console.log('[poll] koffi-based polling started');
+  pollingTimer = setInterval(() => {
+    try {
+      if (isRecordingShortcut) return;
 
-          if (!modifiersMatch(parts, activeMask)) {
-            prevShortcutState[shortcutStr] = false;
-            continue;
+      // --- Track prefix key state (for Valorant picker) ---
+      const prefixVK = VK_MAP[pickerPrefixKeyName];
+      if (prefixVK) {
+        pickerPrefixHeld = (getAsyncKeyState!(prefixVK) & 0x8000) !== 0;
+      }
+
+      const activeMask = readModifierMask();
+      const keysToCheck: string[] = [];
+      for (const k of soundShortcutMap.keys()) keysToCheck.push(k);
+      if (stopShortcutKey && stopShortcutKey !== '') keysToCheck.push(stopShortcutKey);
+
+      // --- Valorant picker: number keys while prefix held ---
+      if (pendingPicker && pickerPrefixHeld) {
+        for (let i = 0; i < 9; i++) {
+          const numKey = String(i + 1);
+          const numVK = VK_MAP[numKey];
+          if (!numVK) continue;
+          const pressed = (getAsyncKeyState!(numVK) & 0x8000) !== 0;
+          const wasPressed = prevShortcutState['__picker_' + numKey] || false;
+          if (pressed && !wasPressed && i < pendingPicker.choices.length) {
+            console.log('[poll] picker selected:', i, pendingPicker.choices[i].name);
+            clearTimeout(pendingPicker.timer);
+            pendingPicker.timer = setTimeout(() => {
+              overlayWindow?.webContents.send('valorant-picker-hide');
+              pendingPicker = null;
+            }, 3000);
+            mainWindow?.webContents.send('shortcut-triggered', pendingPicker.choices[i].id);
           }
+          prevShortcutState['__picker_' + numKey] = pressed;
+        }
+      }
 
-          const chordPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
-          const wasPressed = prevShortcutState[shortcutStr] || false;
 
-          if (chordPressed && !wasPressed) {
-            if (shortcutStr === stopShortcutKey) mainWindow?.webContents.send('stop-shortcut-triggered');
-            else { const sid = soundShortcutMap.get(shortcutStr); if (sid) mainWindow?.webContents.send('shortcut-triggered', sid); }
-          }
-          prevShortcutState[shortcutStr] = chordPressed;
+
+      // --- Check sound shortcuts and stop shortcut ---
+      for (const shortcutStr of keysToCheck) {
+        const parts = shortcutStr.split('+');
+        const keyName = parts[parts.length - 1];
+        const vkKey = VK_MAP[keyName];
+        if (!vkKey) continue;
+
+        if (!modifiersMatch(parts, activeMask)) {
+          prevShortcutState[shortcutStr] = false;
+          continue;
         }
 
-      } catch (_e) { /* poll error */ }
-    }, 30);
-    return;
-  }
+        const chordPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
+        const wasPressed = prevShortcutState[shortcutStr] || false;
 
-  // Fallback: C# helper EXE (has requireAdministrator manifest, works in games)
-  const pollerExePath = getPollerExePath();
-  if (fs.existsSync(pollerExePath)) {
-    debugLog('Starting C# polling helper from: ' + pollerExePath);
-    startExePolling(pollerExePath);
-    return;
-  }
-  debugLog('C# helper not found at: ' + pollerExePath);
+        if (chordPressed && !wasPressed) {
+          if (shortcutStr === stopShortcutKey) mainWindow?.webContents.send('stop-shortcut-triggered');
+          else { const sid = soundShortcutMap.get(shortcutStr); if (sid) mainWindow?.webContents.send('shortcut-triggered', sid); }
+        }
+        prevShortcutState[shortcutStr] = chordPressed;
+      }
 
-  // Last resort: PowerShell-based polling (no admin, doesn't work in games)
-  const psPath = getPollHelperPath();
-  if (!fs.existsSync(psPath)) {
-    debugLog('PowerShell helper not found at: ' + psPath);
-    return;
-  }
-  debugLog('Starting PowerShell polling helper from: ' + psPath);
-  startExePolling(psPath);
+      
+
+      // --- Check system shortcuts (e.g. Ctrl+Shift+Tab) ---
+      for (const combo of Object.keys(systemShortcutActions)) {
+        const parts = combo.split('+');
+        const keyName = parts[parts.length - 1];
+        const vkKey = VK_MAP[keyName];
+        if (!vkKey) continue;
+
+        if (!modifiersMatch(parts, activeMask)) {
+          prevShortcutState[combo] = false;
+          continue;
+        }
+
+        const chordPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
+        const wasPressed = prevShortcutState[combo] || false;
+
+        if (chordPressed && !wasPressed) {
+          console.log('[poll] system action:', combo);
+          systemShortcutActions[combo]();
+        }
+        prevShortcutState[combo] = chordPressed;
+      }
+
+      
+
+      // --- F12 debug ---
+      {
+        const f12Pressed = (getAsyncKeyState!(0x7B) & 0x8000) !== 0;
+        const f12WasPressed = prevShortcutState['__F12__'] || false;
+        if (f12Pressed && !f12WasPressed && mainWindow) {
+          mainWindow.setTitle('[POLL ALIVE] F12 at ' + Date.now());
+          setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 3000);
+        }
+        prevShortcutState['__F12__'] = f12Pressed;
+      }
+
+          } catch (_e) { /* poll error */ }
+  }, 30);
 }
-
 function startExePolling(exePath: string) {
   let pollProcess: any = null;
   let pollBuffer = '';
@@ -992,8 +954,6 @@ app.whenReady().then(() => {
   createOverlayWindow();
   console.log('[GameSound FX] 覆盖窗口已创建');
 
-  uIOhook.start();
-  console.log('[GameSound FX] uiohook 低层键盘钩子已启动');
   startKeyPolling();
   console.log('[GameSound FX] 键盘轮询后备已启动');
 
@@ -1226,7 +1186,6 @@ app.whenReady().then(() => {
   });
 
   ipcMain.on('set-picker-prefix-key', (_event, data: { keyCode: number; keyName: string }) => {
-    pickerPrefixKeyCode = data.keyCode;
     pickerPrefixKeyName = data.keyName;
     // Update overlay hint if picker is showing
     if (pendingPicker) {
@@ -1385,6 +1344,5 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
   valorantDetector?.stop();
-  uIOhook.stop();
   stopKeyPolling();
 });
