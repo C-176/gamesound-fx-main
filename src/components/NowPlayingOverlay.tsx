@@ -49,8 +49,8 @@ function NowPlayingOverlay({ playingSound, allSounds }: NowPlayingOverlayProps) 
         opacity: playingSound ? 1 : 0,
       }}
     >
-      <div className="border border-l-0 border-accent-pink/70 bg-bg-secondary/92 pl-3 pr-4 py-3 rounded-r-xl"
-        style={{ boxShadow: '0 8px 20px rgba(34, 211, 238, 0.22)' }}>
+      <div className="border-2 border-l-0 border-accent-pink bg-bg-secondary pl-3 pr-4 py-3 rounded-none tracking-[1px]"
+        style={{ boxShadow: '3px 0 0 rgba(255, 122, 200, 0.25)' }}>
         <div className="flex items-center gap-3">
           {/* EQ bars */}
           <div className="flex items-end gap-px h-6">

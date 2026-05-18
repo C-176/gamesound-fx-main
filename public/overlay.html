@@ -6,11 +6,12 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: transparent;
-    font-family: 'Consolas', 'Courier New', monospace;
+    font-family: 'VonwaonBitmap', 'Consolas', 'Courier New', monospace;
     overflow: hidden;
     width: 100vw;
     height: 100vh;
     pointer-events: none;
+    letter-spacing: 1px;
   }
 
   #now-playing {
@@ -24,26 +25,27 @@
   #now-playing.active { opacity: 1; }
 
   .np-box {
-    border: 2px solid #ff4dc7;
+    border: 2px solid #ff7ac8;
     border-left: none;
-    background: rgba(18, 18, 31, 0.95);
+    background: #0f0920;
     padding: 12px 16px 12px 12px;
     display: flex;
     align-items: center;
     gap: 12px;
-    box-shadow: 4px 0 12px rgba(255, 77, 199, 0.3);
+    box-shadow: 3px 0 0 rgba(255, 122, 200, 0.25);
   }
 
   .eq-bars { display: flex; align-items: flex-end; gap: 1px; height: 24px; }
-  .eq-bar { width: 3px; background: #ff4dc7; }
+  .eq-bar { width: 3px; background: #ff7ac8; }
 
   .np-name {
-    color: #ff4dc7;
-    font-size: 14px;
+    color: #ff7ac8;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 160px;
+    letter-spacing: 1px;
   }
 
   #picker {
@@ -51,13 +53,51 @@
     bottom: 12px;
     left: 12px;
     z-index: 100;
-    border: 2px solid #ff4dc7;
-    background: rgba(18, 18, 31, 0.97);
+    border: 2px solid #ff2ea0;
+    background: #0f0920;
     padding: 12px;
     min-width: 260px;
     max-width: 340px;
-    box-shadow: 4px 0 12px rgba(255, 77, 199, 0.3);
-    animation: slide-up 0.2s ease-out;
+    box-shadow: 3px 0 0 rgba(255, 46, 160, 0.2);
+    animation: slide-up 0.2s steps(4);
+  }
+
+  .picker-title {
+    color: #ff2ea0;
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .picker-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 2px solid #28204a;
+    background: #171030;
+    margin-bottom: 4px;
+  }
+
+  .picker-num {
+    color: #ff2ea0;
+    font-size: 12px;
+    width: 20px;
+    letter-spacing: 0;
+  }
+
+  .picker-name {
+    color: #e8e6ff;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .picker-hint {
+    color: #7b72b8;
+    font-size: 10px;
+    margin-top: 8px;
+    text-align: center;
+    letter-spacing: 1px;
   }
 
   @keyframes slide-up {
@@ -80,14 +120,13 @@
   </div>
 
   <div id="picker" style="display:none;">
-    <div id="picker-title" style="color:#ff4dc7;font-size:12px;margin-bottom:8px;"></div>
+    <div class="picker-title" id="picker-title"></div>
     <div id="picker-choices"></div>
-    <div id="picker-hint" style="color:#666;font-size:11px;margin-top:8px;text-align:center;">` + 1/2/3 TO SELECT</div>
+    <div class="picker-hint" id="picker-hint">` + 1/2/3 选择</div>
   </div>
 
   <script>
     (function(){
-      // EQ bar animations (injected to avoid cluttering head)
       var s = document.createElement('style');
       s.textContent = [
         '@keyframes b1{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
@@ -117,21 +156,20 @@
         }
       });
 
-      // Picker: render choices with event label as title
       function renderPicker(choices, eventLabel) {
         var titleEl = document.getElementById('picker-title');
         var choicesEl = document.getElementById('picker-choices');
         if (!titleEl || !choicesEl) return;
-        titleEl.textContent = '◆ ' + (eventLabel || 'SELECT SOUND');
+        titleEl.textContent = (eventLabel || 'SELECT SOUND');
         choicesEl.innerHTML = '';
         for (var i = 0; i < choices.length; i++) {
           var div = document.createElement('div');
-          div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:2px solid #ff4dc7;background:rgba(255,77,199,0.08);margin-bottom:4px;';
+          div.className = 'picker-choice';
           var num = document.createElement('span');
-          num.style.cssText = 'color:#ff4dc7;font-size:14px;font-weight:bold;width:20px;';
+          num.className = 'picker-num';
           num.textContent = (i + 1) + '.';
           var name = document.createElement('span');
-          name.style.cssText = 'color:#e0e0ff;font-size:14px;';
+          name.className = 'picker-name';
           name.textContent = choices[i].name || choices[i].id || '???';
           div.appendChild(num);
           div.appendChild(name);
@@ -141,7 +179,7 @@
 
       function updatePickerHint(prefixKeyName) {
         var hint = document.getElementById('picker-hint');
-        if (hint) hint.textContent = (prefixKeyName || '`') + ' + 1/2/3 TO SELECT';
+        if (hint) hint.textContent = (prefixKeyName || '`') + ' + 1/2/3 选择';
       }
 
       electron.ipcRenderer.on('valorant-picker-show', function(_, data) {

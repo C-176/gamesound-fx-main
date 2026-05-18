@@ -1103,7 +1103,7 @@ function App() {
               </div>
               <button
                 onClick={handleImportSounds}
-                className="px-3 py-2 border border-accent/40 bg-accent/10 text-accent text-sm rounded-lg cursor-pointer hover:bg-accent/20 transition-none inline-flex items-center gap-1.5"
+                className="shrink-0 px-3 py-2 border border-accent/40 bg-accent/10 text-accent text-sm rounded-lg cursor-pointer hover:bg-accent/20 transition-none inline-flex items-center gap-1.5"
                 title="导入本地音效文件"
               >
                 <Cassette size={12} color={themeColor.accent} />
@@ -1111,7 +1111,7 @@ function App() {
               </button>
               <button
                 onClick={() => setRightPanel(prev => (prev === 'sniffer' ? 'none' : 'sniffer'))}
-                className={`px-3 py-2 border text-sm rounded-lg cursor-pointer transition-none inline-flex items-center gap-1.5 ${
+                className={`shrink-0 px-3 py-2 border text-sm rounded-lg cursor-pointer transition-none inline-flex items-center gap-1.5 ${
                   rightPanel === 'sniffer'
                     ? 'border-accent-gold bg-accent-gold/20 text-accent-gold'
                     : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-gold'
@@ -1151,7 +1151,7 @@ function App() {
         </div>
 
         {rightPanel !== 'none' && (
-          <aside className="w-[390px] min-w-[340px] max-w-[45%] border-l-2 border-border-default bg-bg-secondary/70 flex">
+          <aside className="w-auto min-w-[280px] max-w-[50%] border-l-2 border-border-default bg-bg-secondary/70 flex">
             {rightPanel === 'valorant' ? (
               <ValorantPanel onClose={() => setRightPanel('none')} />
             ) : (

@@ -88,11 +88,11 @@ function ValorantEventOverlay() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto border border-accent-pink/70 bg-bg-secondary/92 rounded-xl p-3 min-w-[240px] max-w-[340px] animate-[slide-up_0.2s_ease-out]"
-          style={{ boxShadow: '0 8px 20px rgba(34, 211, 238, 0.22)' }}
+          className="pointer-events-auto border-2 border-accent bg-bg-secondary rounded-none p-3 min-w-[240px] max-w-[340px] animate-[slide-up_0.2s_steps(4)] tracking-[1px]"
+          style={{ boxShadow: '3px 0 0 rgba(255, 46, 160, 0.2)' }}
         >
           <div className="flex items-center gap-1.5 mb-1.5">
-            <Satellite size={10} color="#ff4dc7" />
+            <Satellite size={10} color="#ff2ea0" />
             <span className="text-xs font-semibold text-accent-pink">{toast.label}</span>
           </div>
           {toast.soundIds.length > 0 ? (
@@ -100,16 +100,16 @@ function ValorantEventOverlay() {
               {toast.soundIds.map((sid, i) => (
                 <button key={sid}
                   onClick={() => playSound(sid)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 border border-accent-pink/70 bg-accent-pink/10 cursor-pointer hover:bg-accent-pink/18 transition-none rounded-lg"
+                  className="w-full flex items-center justify-between px-2 py-1.5 border-2 border-accent bg-accent/10 cursor-pointer hover:bg-accent/20 transition-none rounded-none"
                 >
-                  <span className="text-sm text-text-primary">▶ {getSoundName(sid)}</span>
-                  <span className="text-xs text-accent-pink">{i + 1}</span>
+                  <span className="text-sm text-text-primary tracking-[1px]">{getSoundName(sid)}</span>
+                  <span className="text-xs text-accent">{i + 1}</span>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="px-2 py-1.5 border border-border-default bg-bg-tertiary rounded-lg">
-              <span className="text-sm text-text-secondary">(no sound bound)</span>
+            <div className="px-2 py-1.5 border-2 border-border-default bg-bg-tertiary rounded-none">
+              <span className="text-sm text-text-secondary tracking-[1px]">(未绑定音效)</span>
             </div>
           )}
         </div>
