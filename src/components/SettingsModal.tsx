@@ -14,7 +14,7 @@ interface SettingsModalProps {
   sounds: Sound[];
   onClearData: () => void;
   stopShortcut: string;
-  onSetStopShortcut: (shortcut: string) => void;
+  onSetStopShortcut: (shortcut: string) => boolean;
   onClearStopShortcut: () => void;
   teamMode: boolean;
   onTeamModeChange: (enabled: boolean) => void;
@@ -66,9 +66,11 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
     setRecordingKey([...keys]);
 
     if (keys.length > 0 && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
-      onSetStopShortcut(keys.join('+'));
-      setIsRecording(false);
-      setRecordingKey([]);
+      const ok = onSetStopShortcut(keys.join('+'));
+      if (ok) {
+        setIsRecording(false);
+        setRecordingKey([]);
+      }
     }
 
     e.preventDefault();
@@ -85,12 +87,16 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
   }, [isRecording, handleKeyDown]);
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-bg-secondary border-2 border-accent rounded-none w-[380px] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => { if (!isRecording) onClose(); }}>
+      <div className="bg-bg-secondary border border-accent/50 rounded-xl w-[420px] max-h-[85vh] flex flex-col shadow-retro" onClick={e => e.stopPropagation()}>
         {/* Fixed header */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b-2 border-border-default shrink-0">
-          <h2 className="font-pixel text-lg text-accent">{copy.settings.title}</h2>
-          <button onClick={onClose} className="w-7 h-7 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border-default shrink-0">
+          <h2 className="text-base font-semibold text-accent">{copy.settings.title}</h2>
+          <button onClick={() => { if (!isRecording) onClose(); }} className={`w-8 h-8 border bg-bg-tertiary flex items-center justify-center transition-none rounded-lg ${
+            isRecording
+              ? 'border-border-default text-text-secondary/50 cursor-not-allowed'
+              : 'border-border-default text-text-secondary cursor-pointer hover:border-accent-red hover:text-accent-red'
+          }`}>
             <svg shapeRendering="crispEdges" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
           </button>
         </div>
@@ -100,24 +106,25 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
           {/* Play/Pause shortcut */}
           <div>
             <SectionTitle icon={<Lightning size={12} color={themeColor.accent} />} variant="accent">{copy.settings.playPause}</SectionTitle>
-            <div className="panel-inset rounded-none">
+            <div className="panel-inset">
               {isRecording ? (
                 <div className="flex flex-col items-center py-3">
-                  <span className="text-accent font-pixel text-base animate-[blink_0.8s_steps(1)_infinite]">{copy.common.pressKey}</span>
-                  {recordingKey.length > 0 && <span className="mt-1 text-accent-gold font-pixel text-base">{recordingKey.join('+')}</span>}
+                  <span className="text-accent text-sm font-medium animate-[blink_0.8s_steps(1)_infinite]">{copy.common.pressKey}</span>
+                  {recordingKey.length > 0 && <span className="mt-1 text-accent-gold text-sm font-medium">{recordingKey.join('+')}</span>}
+                  <span className="mt-1.5 meta-label text-accent-red">录制中：点击遮罩不会关闭，请按 ESC 取消</span>
                 </div>
               ) : stopShortcut ? (
-                <div className="flex items-center justify-between p-1.5 bg-bg-secondary border-2 border-border-default rounded-none">
+                <div className="flex items-center justify-between p-2 bg-bg-secondary border border-border-default rounded-lg">
                   <div className="flex items-center gap-2">
-                    <kbd className="kbd-chip font-pixel">{stopShortcut}</kbd>
-                    <span className="text-base text-text-primary font-pixel">{copy.settings.playPauseLabel}</span>
+                    <kbd className="kbd-chip">{stopShortcut}</kbd>
+                    <span className="text-sm text-text-primary">{copy.settings.playPauseLabel}</span>
                   </div>
-                  <button onClick={onClearStopShortcut} className="w-7 h-7 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+                  <button onClick={onClearStopShortcut} className="w-7 h-7 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
                     <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                   </button>
                 </div>
               ) : (
-                <button onClick={() => { (window as any).electron?.ipcRenderer?.send('set-recording-mode', true); setIsRecording(true); }} className="w-full px-2.5 py-1.5 border-2 border-border-default bg-transparent text-accent font-pixel text-base text-left cursor-pointer hover:border-accent transition-none flex items-center gap-2 rounded-none">
+                <button onClick={() => { (window as any).electron?.ipcRenderer?.send('set-recording-mode', true); setIsRecording(true); }} className="w-full px-3 py-2 border border-border-default bg-transparent text-accent text-sm text-left cursor-pointer hover:border-accent transition-none flex items-center gap-2 rounded-lg">
                   <Lightning size={12} color={themeColor.cyan} /> {copy.settings.setPlayPause}
                 </button>
               )}
@@ -128,23 +135,23 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
           {/* Team Mode */}
           <div>
             <SectionTitle icon={<UFO size={12} color={themeColor.green} />}>{copy.settings.teamMode}</SectionTitle>
-            <div className="panel-inset rounded-none space-y-2">
+            <div className="panel-inset space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-base font-pixel text-text-primary">{copy.settings.pushToTalk}</span>
+                <span className="text-sm text-text-primary">{copy.settings.pushToTalk}</span>
                 <button
                   onClick={() => onTeamModeChange(!teamMode)}
-                  className={`toggle-chip font-pixel rounded-none ${teamMode ? 'is-on' : ''}`}
+                  className={`toggle-chip ${teamMode ? 'is-on' : ''}`}
                 >
                   {teamMode ? copy.common.on : copy.common.off}
                 </button>
               </div>
               {teamMode && (
                 <div className="flex items-center gap-2">
-                  <span className="meta-label font-pixel">{copy.settings.teamKey}</span>
+                  <span className="meta-label">{copy.settings.teamKey}</span>
                   <select
                     value={teamKey}
                     onChange={e => onTeamKeyChange(e.target.value)}
-                    className="flex-1 px-2 py-1 bg-bg-secondary border-2 border-border-default text-text-primary text-base font-pixel outline-none focus:border-accent rounded-none cursor-pointer"
+                    className="flex-1 px-2 py-1.5 bg-bg-secondary border border-border-default text-text-primary text-sm outline-none focus:border-accent rounded-lg cursor-pointer"
                   >
                     {TEAM_KEYS.map(k => (
                       <option key={k} value={k}>{k}</option>
@@ -152,7 +159,7 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
                   </select>
                 </div>
               )}
-              <p className="meta-label font-pixel">
+              <p className="meta-label">
                 {teamMode ? copy.settings.teamOnHint : copy.settings.teamOffHint}
               </p>
             </div>
@@ -161,58 +168,58 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
           {/* Valorant Monitor */}
           <div>
             <SectionTitle icon={<Satellite size={12} color={themeColor.accent} />} variant="accent">{copy.settings.valorant}</SectionTitle>
-            <div className="panel-inset rounded-none space-y-2">
+            <div className="panel-inset space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-base font-pixel text-text-primary">{copy.settings.logMonitor}</span>
+                <span className="text-sm text-text-primary">{copy.settings.logMonitor}</span>
                 <button
                   onClick={() => onValorantEnabledChange?.(!valorantEnabled)}
-                  className={`toggle-chip font-pixel rounded-none ${valorantEnabled ? 'is-on' : ''}`}
+                  className={`toggle-chip ${valorantEnabled ? 'is-on' : ''}`}
                 >
                   {valorantEnabled ? copy.common.on : copy.common.off}
                 </button>
               </div>
-              <p className="meta-label font-pixel">{copy.settings.valorantHint}</p>
+              <p className="meta-label">{copy.settings.valorantHint}</p>
             </div>
           </div>
 
           {/* Picker Prefix Key */}
           <div>
             <SectionTitle icon={<Rocket size={12} color={themeColor.pink} />}>{copy.settings.pickerPrefix}</SectionTitle>
-            <div className="panel-inset rounded-none space-y-2">
+            <div className="panel-inset space-y-2">
               <div className="flex items-center gap-2">
-                <span className="meta-label font-pixel">{copy.settings.prefix}</span>
+                <span className="meta-label">{copy.settings.prefix}</span>
                 <select
                   value={pickerPrefixKey}
                   onChange={e => onPickerPrefixKeyChange?.(e.target.value)}
-                  className="flex-1 px-2 py-1 bg-bg-secondary border-2 border-border-default text-text-primary text-base font-pixel outline-none focus:border-accent rounded-none cursor-pointer"
+                  className="flex-1 px-2 py-1.5 bg-bg-secondary border border-border-default text-text-primary text-sm outline-none focus:border-accent rounded-lg cursor-pointer"
                 >
                   {PREFIX_KEYS.map(k => (
                     <option key={k} value={k}>{k === '`' ? '~ / `' : k}</option>
                   ))}
                 </select>
               </div>
-              <p className="meta-label font-pixel">{copy.settings.pickerHint}</p>
+              <p className="meta-label">{copy.settings.pickerHint}</p>
             </div>
           </div>
 
           {/* Sound shortcuts */}
           <div>
             <SectionTitle icon={<Cassette size={12} color={themeColor.cyan} />}>{copy.settings.shortcuts}</SectionTitle>
-            <div className="panel-inset rounded-none max-h-[160px] overflow-y-auto">
+            <div className="panel-inset max-h-[160px] overflow-y-auto">
               {Object.keys(shortcuts).length === 0 ? (
                 <div className="flex flex-col items-center py-4 text-text-secondary">
                   <Cassette size={20} color={themeColor.muted} />
-                  <span className="text-base font-pixel mt-2">{copy.settings.shortcutsEmpty}</span>
-                  <span className="meta-label font-pixel mt-1">{copy.settings.shortcutsHint}</span>
+                  <span className="text-sm font-medium mt-2">{copy.settings.shortcutsEmpty}</span>
+                  <span className="meta-label mt-1">{copy.settings.shortcutsHint}</span>
                 </div>
               ) : (
                 Object.entries(shortcuts).map(([shortcut, soundId]) => (
-                  <div key={shortcut} className="flex items-center justify-between p-1.5 bg-bg-secondary border-2 border-border-default rounded-none mb-1.5 last:mb-0">
+                  <div key={shortcut} className="flex items-center justify-between p-2 bg-bg-secondary border border-border-default rounded-lg mb-1.5 last:mb-0">
                     <div className="flex items-center gap-2">
-                      <kbd className="kbd-chip font-pixel">{shortcut}</kbd>
-                      <span className="text-base text-text-primary font-pixel">{getSoundName(soundId)}</span>
+                      <kbd className="kbd-chip">{shortcut}</kbd>
+                      <span className="text-sm text-text-primary">{getSoundName(soundId)}</span>
                     </div>
-                    <button onClick={() => onRemoveShortcut(shortcut)} className="w-7 h-7 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+                    <button onClick={() => onRemoveShortcut(shortcut)} className="w-7 h-7 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
                       <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                     </button>
                   </div>
@@ -224,9 +231,9 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
           {/* Help */}
           <div>
             <SectionTitle icon={<Rocket size={12} color={themeColor.pink} />}>{copy.settings.help}</SectionTitle>
-            <div className="panel-inset rounded-none space-y-1">
+            <div className="panel-inset space-y-1">
               {copy.settings.helpLines.map((text, i) => (
-                <div key={i} className="flex items-start gap-2 meta-label font-pixel">
+                <div key={i} className="flex items-start gap-2 meta-label">
                   <span className="text-accent-cyan shrink-0">▸</span>
                   <span>{text}</span>
                 </div>
@@ -239,7 +246,7 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
             <SectionTitle icon={<Skull size={12} color={themeColor.red} />} variant="danger">{copy.settings.danger}</SectionTitle>
             <button
               onClick={() => setConfirmClear(true)}
-              className="w-full px-3 py-2 border-2 border-accent-red bg-accent-red/5 text-accent-red text-base font-pixel cursor-pointer hover:bg-accent-red hover:text-white transition-none rounded-none"
+              className="w-full px-3 py-2 border border-accent-red bg-accent-red/8 text-accent-red text-sm cursor-pointer hover:bg-accent-red/16 transition-none rounded-lg"
             >
               {copy.settings.resetAll}
             </button>

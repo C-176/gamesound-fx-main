@@ -10,7 +10,7 @@ interface SoundGridProps {
   playingSound: string | null;
   onToggleSound: (sound: Sound) => void;
   shortcuts: Record<string, string>;
-  onAddShortcut: (soundId: string, shortcut: string) => void;
+  onAddShortcut: (soundId: string, shortcut: string) => boolean;
   onRemoveShortcut: (shortcut: string) => void;
   onDeleteSound: (soundId: string) => void;
   groups: Group[];
@@ -54,25 +54,25 @@ const SoundCard = memo(function SoundCard({
     <div className="relative">
       <button
         onClick={() => onToggleSound(sound)}
-        className={`w-full min-h-[40px] pl-3 pr-2 py-2 text-base font-pixel text-left cursor-pointer transition-none border-2 flex items-center gap-1.5 rounded-none
+        className={`w-full min-h-[44px] pl-3 pr-2 py-2 text-sm text-left cursor-pointer border flex items-center gap-1.5 rounded-xl transition-colors
           ${isPlaying
-            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[card-dance_0.8s_steps(2)_infinite,border-glow_1.5s_steps(1)_infinite]'
-            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-pink hover:text-accent-pink hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-retro-sm active:translate-x-0 active:translate-y-0 active:shadow-none'
+            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[glowPulse_1.8s_ease-in-out_infinite]'
+            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent hover:text-accent'
           }`}
           style={isPlaying ? { willChange: 'transform' } : undefined}
       >
         {groupColor && (
-          <span className="w-2 h-2 shrink-0 rounded-none border border-bg-primary" style={{ backgroundColor: groupColor }} />
+          <span className="w-2 h-2 shrink-0 rounded-full border border-bg-primary" style={{ backgroundColor: groupColor }} />
         )}
         <span className={`overflow-hidden text-ellipsis whitespace-nowrap flex-1 ${isPlaying ? 'text-accent-pink' : ''}`} title={sound.name}>{sound.name}</span>
         {isRecThis ? (
-          <span className="shrink-0 text-xs font-pixel px-1 py-0.5 bg-accent-pink text-white rounded-none animate-[blink_0.5s_steps(1)_infinite]">
+          <span className="shrink-0 text-xs px-1.5 py-0.5 bg-accent-pink text-white rounded-md animate-[blink_0.8s_steps(1)_infinite]">
             {recordingKeys.length > 0 ? recordingKeys.join('+') : '...'}
           </span>
         ) : shortcut ? (
           <span
             onClick={(e) => { e.stopPropagation(); onRemoveShortcut(shortcut); }}
-            className="shrink-0 text-xs font-pixel px-1 py-0.5 bg-accent text-black rounded-none cursor-pointer hover:bg-accent-red hover:text-white"
+            className="shrink-0 text-xs px-1.5 py-0.5 bg-accent/15 text-accent rounded-md cursor-pointer hover:bg-accent-red/20 hover:text-accent-red"
             title={`${shortcut} · 点击移除`}
           >
             {shortcut}
@@ -80,7 +80,7 @@ const SoundCard = memo(function SoundCard({
         ) : (
           <span
             onClick={(e) => { e.stopPropagation(); onRecordStart(sound.id); }}
-            className="shrink-0 text-xs font-pixel px-1 py-0.5 border border-border-default text-text-secondary rounded-none cursor-pointer hover:border-accent-pink hover:text-accent-pink"
+            className="shrink-0 text-xs px-1.5 py-0.5 border border-border-default text-text-secondary rounded-md cursor-pointer hover:border-accent hover:text-accent"
             title={copy.sound.rec}
           >
             {copy.sound.rec}
@@ -94,9 +94,9 @@ const SoundCard = memo(function SoundCard({
         <span
           data-menu-btn="true"
           onClick={(e) => { e.stopPropagation(); onMenuClick(e, sound.id); }}
-          className={`shrink-0 w-4 h-4 border rounded-none flex items-center justify-center cursor-pointer
+          className={`shrink-0 w-5 h-5 border rounded-md flex items-center justify-center cursor-pointer
             ${isMenuOpen
-              ? 'border-accent bg-accent text-black'
+              ? 'border-accent bg-accent/15 text-accent'
               : 'border-border-default text-text-secondary hover:border-accent hover:text-accent'
             }`}
           title={copy.sound.menu}
@@ -109,9 +109,9 @@ const SoundCard = memo(function SoundCard({
         </span>
       </button>
       {isMenuOpen && createPortal(
-        <div className="context-menu bg-bg-secondary border-2 border-accent rounded-none p-1.5 min-w-[170px]" style={{ position: 'fixed', top: menuPos.top + 'px', left: menuPos.left + 'px', zIndex: 9999 }}>
+        <div className="context-menu bg-bg-secondary border border-accent rounded-xl p-1.5 min-w-[180px] shadow-retro" style={{ position: 'fixed', top: menuPos.top + 'px', left: menuPos.left + 'px', zIndex: 9999 }}>
           {/* Sound name header */}
-          <div className="px-2.5 py-1.5 text-base font-pixel text-accent truncate border-b-2 border-border-default mb-1" title={sound.name}>
+          <div className="px-2.5 py-1.5 text-sm font-medium text-accent truncate border-b border-border-default mb-1" title={sound.name}>
             {sound.name}
           </div>
           {/* Group actions */}
@@ -129,10 +129,10 @@ const SoundCard = memo(function SoundCard({
                         onAddToGroup(sound.id, g.id);
                         onMenuClose();
                       }}
-                      className={`w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-base rounded-none text-left cursor-pointer flex items-center gap-2 hover:border-border-default transition-none
+                      className={`w-full px-2.5 py-1.5 border border-transparent bg-transparent text-sm rounded-lg text-left cursor-pointer flex items-center gap-2 hover:border-border-default transition-none
                         ${isCurrentGroup ? 'text-text-secondary' : 'text-text-primary'}`}
                     >
-                      <span className={`w-2 h-2 rounded-none shrink-0 ${isCurrentGroup ? 'opacity-40' : ''}`} style={{ backgroundColor: g.color }} />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${isCurrentGroup ? 'opacity-40' : ''}`} style={{ backgroundColor: g.color }} />
                       <span className="flex-1 truncate">{g.name}</span>
                       {isCurrentGroup && <Checkmark size={10} color="var(--text-secondary)" />}
                     </button>
@@ -142,18 +142,18 @@ const SoundCard = memo(function SoundCard({
                 {soundGroupMap[sound.id] && (
                   <button
                     onClick={() => { onRemoveFromGroup(sound.id, soundGroupMap[sound.id]); onMenuClose(); }}
-                    className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
+                  className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-accent-red text-sm rounded-lg text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/10 transition-none"
                   >
-                    <span className="font-pixel text-sm mr-1">✕</span> {copy.sound.removeGroup}
+                    <span className="text-sm mr-1">✕</span> {copy.sound.removeGroup}
                   </button>
                 )}
               </>
             )}
             <button
               onClick={() => { onDeleteRequest?.(sound.id); }}
-              className="w-full px-2.5 py-1.5 border-2 border-transparent bg-transparent text-accent-red text-base rounded-none text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/5 transition-none"
+              className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-accent-red text-sm rounded-lg text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/10 transition-none"
             >
-              <span className="font-pixel text-sm mr-1">✕</span> {copy.sound.deleteSound}
+              <span className="text-sm mr-1">✕</span> {copy.sound.deleteSound}
             </button>
           </div>
         </div>,
@@ -186,12 +186,12 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
       const target = e.target as HTMLElement;
       if (!target.closest('[data-menu-btn]') && !target.closest('.context-menu')) {
         setActiveMenu(null);
-        cancelRecording();
+        if (!isRecording) cancelRecording();
       }
     };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
-  }, []);
+  }, [isRecording]);
 
   const cancelRecording = () => { (window as any).electron?.ipcRenderer?.send('set-recording-mode', false); setIsRecording(false); setRecordingKey([]); setRecordingSoundId(null); };
 
@@ -211,16 +211,14 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
       setRecordingKey([...keys]);
       if (keys.length > 0 && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
         const shortcut = keys.join('+');
-        const existing = Object.entries(shortcuts).find(([, sid]) => sid === recordingSoundId);
-        if (existing) onRemoveShortcut(existing[0]);
-        onAddShortcut(recordingSoundId, shortcut);
-        cancelRecording();
+        const ok = onAddShortcut(recordingSoundId, shortcut);
+        if (ok) cancelRecording();
       }
       e.preventDefault();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isRecording, recordingSoundId, shortcuts, onAddShortcut, onRemoveShortcut]);
+  }, [isRecording, recordingSoundId, onAddShortcut]);
 
 
   const handleMenuClick = (e: React.MouseEvent, soundId: string) => {
@@ -283,8 +281,8 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
               <Rocket size={32} color="#6a6aa0" />
               <Saturn size={32} color="#7a7ab0" />
             </div>
-            <span className="text-base font-pixel text-text-primary">{emptyHint || copy.sound.emptyTitle}</span>
-            <span className="mt-1.5 meta-label font-pixel">{copy.sound.emptyHint}</span>
+            <span className="text-sm font-medium text-text-primary">{emptyHint || copy.sound.emptyTitle}</span>
+            <span className="mt-1.5 meta-label">{copy.sound.emptyHint}</span>
           </div>
         )}
       </div>

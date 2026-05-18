@@ -45,11 +45,6 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
     }
   }, [isBrowserOpen]);
 
-  // Auto-open browser on mount
-  useEffect(() => {
-    toggleBrowser();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const playSoundPreview = useCallback(async (sound: CapturedSound) => {
     if (playingSound === sound.url) {
       if (audioRefs.current[sound.url]) {
@@ -197,7 +192,7 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {onClose && (
-            <span className="text-base font-pixel text-accent-gold px-1.5 py-0.5 bg-bg-tertiary border border-accent-gold/40 rounded-none">
+            <span className="text-sm text-accent-gold px-2 py-1 bg-bg-tertiary border border-accent-gold/40 rounded-lg">
               {copy.sniffer.target(targetGroupName)}
             </span>
           )}
@@ -205,30 +200,30 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
         <div className="flex items-center gap-1.5">
           <button
             onClick={toggleBrowser}
-            className={`shrink-0 px-2.5 py-1.5 border-2 text-base font-pixel cursor-pointer transition-none rounded-none
+            className={`shrink-0 px-3 py-2 border text-sm cursor-pointer transition-none rounded-lg
               ${isBrowserOpen
-                ? 'border-accent-red bg-accent-red/10 text-accent-red hover:bg-accent-red hover:text-white'
-                : 'border-accent bg-accent text-black hover:bg-accent-gold hover:border-accent-gold'
+                ? 'border-accent-red bg-accent-red/10 text-accent-red hover:bg-accent-red/20'
+                : 'border-accent bg-accent/10 text-accent hover:bg-accent/20'
               }`}
           >
             {isBrowserOpen ? copy.sniffer.closeBrowser : copy.sniffer.openBrowser}
           </button>
           {onClose && (
-            <button onClick={onClose} className="w-7 h-7 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+            <button onClick={onClose} className="w-8 h-8 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
               <svg shapeRendering="crispEdges" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex-1 border-2 border-border-default rounded-none overflow-hidden flex flex-col">
-        <div className="px-3 py-2 bg-bg-secondary border-b-2 border-border-default flex items-center justify-between">
-          <span className="text-base text-text-primary font-pixel flex items-center gap-1.5">
+      <div className="flex-1 border border-border-default rounded-xl overflow-hidden flex flex-col">
+        <div className="px-3 py-2 bg-bg-secondary border-b border-border-default flex items-center justify-between">
+          <span className="text-sm text-text-primary font-medium flex items-center gap-1.5">
             <Satellite size={12} color={themeColor.cyan} /> {copy.sniffer.captured(capturedSounds.length)}
           </span>
           {capturedSounds.length > 0 && (
             <div className="flex gap-1.5">
-              <button onClick={clearAll} className="px-2 py-1 border-2 border-accent-red bg-transparent text-accent-red text-base font-pixel cursor-pointer hover:bg-accent-red hover:text-white transition-none rounded-none">
+              <button onClick={clearAll} className="px-2.5 py-1.5 border border-accent-red bg-transparent text-accent-red text-sm cursor-pointer hover:bg-accent-red/15 transition-none rounded-lg">
                 {copy.common.clear}
               </button>
             </div>
@@ -239,36 +234,36 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
           {capturedSounds.length === 0 ? (
             <div className="py-8 px-4 text-center text-text-secondary">
               <div className="mb-2 opacity-40"><Globe size={32} color="#8a8ac0" /></div>
-              <div className="text-base font-pixel">{copy.sniffer.emptyTitle}</div>
-              <div className="mt-1 meta-label font-pixel">{copy.sniffer.emptyHint}</div>
+              <div className="text-sm font-medium">{copy.sniffer.emptyTitle}</div>
+              <div className="mt-1 meta-label">{copy.sniffer.emptyHint}</div>
             </div>
           ) : (
             <div className="p-2">
               {capturedSounds.map((sound) => (
-                <div key={sound.url} className={`flex items-center px-3 py-2.5 bg-bg-tertiary border-2 mb-2 gap-3 rounded-none ${playingSound === sound.url ? 'border-accent-green' : 'border-border-default'}`}>
+                <div key={sound.url} className={`flex items-center px-3 py-2.5 bg-bg-tertiary border mb-2 gap-3 rounded-lg ${playingSound === sound.url ? 'border-accent-green' : 'border-border-default'}`}>
                   <button
                     onClick={() => playSoundPreview(sound)}
-                    className={`w-7 h-7 border-2 flex items-center justify-center text-base cursor-pointer transition-none rounded-none
+                    className={`w-8 h-8 border flex items-center justify-center text-sm cursor-pointer transition-none rounded-lg
                       ${playingSound === sound.url
                         ? 'border-accent-green bg-accent-green/10 text-accent-green'
-                        : 'border-accent bg-accent/10 text-accent hover:bg-accent hover:text-black'
+                        : 'border-accent bg-accent/10 text-accent hover:bg-accent/20'
                       }`}
                   >
                     {playingSound === sound.url ? <StopSquare size={10} color="currentColor" /> : <PlayTriangle size={10} color="currentColor" />}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="text-base text-text-primary font-pixel overflow-hidden text-ellipsis whitespace-nowrap">{sound.name}</div>
-                    <div className="text-base text-text-secondary font-pixel">{formatTime(sound.timestamp)}</div>
+                    <div className="text-sm text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">{sound.name}</div>
+                    <div className="text-xs text-text-secondary">{formatTime(sound.timestamp)}</div>
                   </div>
                   <button
                     onClick={() => downloadSound(sound)}
                     disabled={sound.downloaded || downloading === sound.url}
-                    className={`px-2.5 py-1 border-2 text-base font-pixel cursor-pointer transition-none rounded-none
+                    className={`px-2.5 py-1.5 border text-sm cursor-pointer transition-none rounded-lg
                       ${sound.downloaded
                         ? 'border-accent-green bg-accent-green/5 text-accent-green cursor-default'
                         : downloading === sound.url
                           ? 'border-accent bg-accent/20 text-accent'
-                          : 'border-accent bg-accent text-black hover:bg-accent-gold hover:border-accent-gold'
+                          : 'border-accent bg-accent/12 text-accent hover:bg-accent/20'
                       }`}
                   >
                     {downloading === sound.url ? '…' : sound.downloaded ? copy.sniffer.saved : copy.sniffer.get}
@@ -281,23 +276,23 @@ function OnlineSoundBrowser({ onImport, onClose, targetGroupId, targetGroupName 
       </div>
 
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]" onClick={cancelDownload}>
-          <div className="bg-bg-secondary border-2 border-accent rounded-none p-5 min-w-[300px]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-pixel text-base text-accent mb-4 flex items-center gap-1.5"><Cassette size={12} color={themeColor.accent} /> {copy.sniffer.saveTitle}</h3>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]" onClick={cancelDownload}>
+          <div className="bg-bg-secondary border border-accent/55 rounded-xl p-5 min-w-[320px] shadow-retro" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-accent mb-4 flex items-center gap-1.5"><Cassette size={12} color={themeColor.accent} /> {copy.sniffer.saveTitle}</h3>
             <input
               type="text"
               value={newSoundName}
               onChange={(e) => setNewSoundName(e.target.value)}
               placeholder={copy.sniffer.namePlaceholder}
-              className="w-full px-2.5 py-2 bg-bg-tertiary border-2 border-border-default text-text-primary text-base font-pixel outline-none focus:border-accent transition-none mb-4 rounded-none"
+              className="w-full px-3 py-2 bg-bg-tertiary border border-border-default text-text-primary text-sm outline-none focus:border-accent transition-none mb-4 rounded-lg"
               onKeyDown={(e) => { if (e.key === 'Enter') confirmDownload(); if (e.key === 'Escape') cancelDownload(); }}
               autoFocus
             />
             <div className="flex gap-2 justify-end">
-              <button onClick={cancelDownload} className="px-3 py-1.5 border-2 border-border-default bg-transparent text-text-secondary text-base font-pixel cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+              <button onClick={cancelDownload} className="px-3 py-1.5 border border-border-default bg-transparent text-text-secondary text-sm cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
                 {copy.common.cancel}
               </button>
-              <button onClick={confirmDownload} className="px-3 py-1.5 border-2 border-accent bg-accent text-black text-base font-pixel cursor-pointer hover:bg-accent-gold hover:border-accent-gold transition-none rounded-none">
+              <button onClick={confirmDownload} className="px-3 py-1.5 border border-accent bg-accent/15 text-accent text-sm cursor-pointer hover:bg-accent/22 transition-none rounded-lg">
                 {copy.common.save}
               </button>
             </div>

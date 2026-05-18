@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GameSound FX - 完整版 UX 设计稿 V1</title>
+    <style>
+      :root {
+        --bg-0: #070b13;
+        --bg-1: #0d1320;
+        --bg-2: #121b2b;
+        --bg-3: #172338;
+        --line: #2c3f61;
+        --line-soft: #25344f;
+        --text-1: #e3edff;
+        --text-2: #9eb3d8;
+        --primary: #8b5cf6;
+        --primary-2: #22d3ee;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --radius: 12px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text-1);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        background:
+          radial-gradient(circle at 10% 0%, #1a2742 0%, rgba(26, 39, 66, 0) 40%),
+          radial-gradient(circle at 100% 100%, #261a45 0%, rgba(38, 26, 69, 0) 45%),
+          var(--bg-0);
+      }
+
+      .page {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+      }
+
+      .sub {
+        margin: 8px 0 20px;
+        color: var(--text-2);
+      }
+
+      .overview {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 60%), var(--bg-1);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.015) 0px,
+          rgba(255, 255, 255, 0.015) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+        opacity: 0.12;
+      }
+
+      .card h2 {
+        margin: 0;
+        padding: 12px 14px;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8de9ff;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .body {
+        padding: 14px;
+      }
+
+      .tokens {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .token {
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        padding: 8px;
+        background: var(--bg-2);
+        font-size: 12px;
+      }
+
+      .swatch {
+        width: 100%;
+        height: 20px;
+        border-radius: 7px;
+        margin-bottom: 6px;
+      }
+
+      .notes {
+        display: grid;
+        gap: 8px;
+        color: var(--text-2);
+        font-size: 13px;
+      }
+
+      .layouts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .window {
+        border: 2px solid #354f79;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #0f1728;
+      }
+
+      .titlebar {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: #131f35;
+        border-bottom: 1px solid #2a3c5d;
+        font-size: 12px;
+      }
+
+      .title-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .icon {
+        width: 14px;
+        height: 14px;
+        color: #8de9ff;
+        opacity: 0.9;
+      }
+
+      .dot-wrap {
+        display: flex;
+        gap: 6px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #4d648d;
+        animation: dotPulse 2.2s ease-in-out infinite;
+      }
+
+      .dot:nth-child(2) {
+        animation-delay: 0.35s;
+      }
+
+      .dot:nth-child(3) {
+        animation-delay: 0.7s;
+      }
+
+      .main-content {
+        padding: 10px;
+      }
+
+      .top-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .chip {
+        border: 1px solid #466392;
+        background: #1a2b45;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .search {
+        flex: 1;
+        border: 1px solid #38527a;
+        border-radius: 10px;
+        color: #8da5ce;
+        padding: 9px 12px;
+        font-size: 12px;
+      }
+
+      .sound-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .sound {
+        border: 1px solid #30486f;
+        border-radius: 10px;
+        min-height: 84px;
+        padding: 8px;
+        background: #121d31;
+      }
+
+      .sound.playing {
+        border-color: var(--primary);
+        box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.45);
+        animation: glowPulse 1.8s ease-in-out infinite;
+      }
+
+      .sound.error {
+        border-color: rgba(239, 68, 68, 0.6);
+      }
+
+      .sound .name {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .eq {
+        height: 14px;
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 2px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+
+      .eq > span {
+        width: 2px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, #c9a6ff 0%, #22d3ee 100%);
+        animation: eqBounce 0.9s steps(2, end) infinite;
+      }
+
+      .eq > span:nth-child(1) { height: 7px; animation-delay: 0.08s; }
+      .eq > span:nth-child(2) { height: 11px; animation-delay: 0.16s; }
+      .eq > span:nth-child(3) { height: 9px; animation-delay: 0.24s; }
+      .eq > span:nth-child(4) { height: 13px; animation-delay: 0.32s; }
+
+      .hotkey {
+        display: inline-block;
+        border: 1px solid #4f6793;
+        border-radius: 8px;
+        font-size: 11px;
+        padding: 2px 6px;
+        color: #bdd0f4;
+      }
+
+      .status-row {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        font-size: 11px;
+      }
+
+      .status {
+        border: 1px solid #3a4e76;
+        border-radius: 999px;
+        padding: 4px 8px;
+      }
+
+      .status.success {
+        border-color: rgba(34, 197, 94, 0.5);
+        color: #86efac;
+      }
+
+      .status.warn {
+        border-color: rgba(245, 158, 11, 0.5);
+        color: #fcd34d;
+      }
+
+      .status.danger {
+        border-color: rgba(239, 68, 68, 0.5);
+        color: #fda4af;
+      }
+
+      .compact {
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(87, 112, 160, 0.6);
+        background: rgba(18, 31, 51, 0.72);
+        backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px;
+        transition: border-color 120ms ease, transform 120ms ease;
+      }
+
+      .compact:hover {
+        transform: translateY(-1px);
+        border-color: rgba(139, 92, 246, 0.75);
+      }
+
+      .compact .input {
+        flex: 1;
+        border: 1px solid #3e5a87;
+        border-radius: 999px;
+        color: #8ea8d4;
+        font-size: 12px;
+        padding: 7px 12px;
+      }
+
+      .overlay-zone {
+        display: flex;
+        gap: 10px;
+      }
+
+      .overlay {
+        width: 290px;
+        border: 1px solid rgba(34, 211, 238, 0.42);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(8, 20, 36, 0.72);
+        backdrop-filter: blur(7px);
+      }
+
+      .wave {
+        margin-top: 8px;
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 3px;
+      }
+
+      .wave > span {
+        width: 3px;
+        border-radius: 2px;
+        background: #67e8f9;
+        animation: waveBounce 1.1s ease-in-out infinite;
+      }
+
+      .wave > span:nth-child(1) { height: 6px; }
+      .wave > span:nth-child(2) { height: 12px; animation-delay: 0.12s; }
+      .wave > span:nth-child(3) { height: 8px; animation-delay: 0.24s; }
+      .wave > span:nth-child(4) { height: 14px; animation-delay: 0.36s; }
+      .wave > span:nth-child(5) { height: 7px; animation-delay: 0.48s; }
+
+      .overlay .k {
+        font-size: 11px;
+        color: #67e8f9;
+      }
+
+      .overlay .v {
+        margin: 5px 0 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .progress {
+        height: 6px;
+        border-radius: 999px;
+        background: #163453;
+        overflow: hidden;
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        width: 72%;
+        background: linear-gradient(90deg, var(--primary), var(--primary-2));
+        position: relative;
+      }
+
+      .progress > span::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: -12px;
+        width: 14px;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.65);
+        filter: blur(2px);
+        animation: progressHead 1.4s linear infinite;
+      }
+
+      .settings {
+        border-radius: 12px;
+        border: 1px solid rgba(106, 128, 168, 0.62);
+        background: rgba(14, 24, 38, 0.82);
+        backdrop-filter: blur(14px);
+        overflow: hidden;
+      }
+
+      .settings .head {
+        border-bottom: 1px solid #2d4060;
+        padding: 11px 12px;
+        font-size: 13px;
+        color: #8de9ff;
+      }
+
+      .settings .row {
+        display: grid;
+        grid-template-columns: 150px 1fr 120px;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #293a58;
+        padding: 10px 12px;
+        font-size: 12px;
+      }
+
+      .settings .row:last-child {
+        border-bottom: 0;
+      }
+
+      .l {
+        color: var(--text-2);
+      }
+
+      .m {
+        color: var(--text-1);
+      }
+
+      .btn {
+        border: 1px solid #476596;
+        background: #1a2d4a;
+        color: #c8dafd;
+        border-radius: 8px;
+        padding: 5px 8px;
+        text-align: center;
+        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: #6d8ec7;
+        background: #21365a;
+      }
+
+      .btn.primary {
+        border-color: rgba(139, 92, 246, 0.66);
+        background: rgba(139, 92, 246, 0.2);
+        animation: glowPulse 2.2s ease-in-out infinite;
+      }
+
+      .toggle {
+        position: relative;
+        width: 40px;
+        height: 22px;
+        border-radius: 999px;
+        background: rgba(139, 92, 246, 0.24);
+        border: 1px solid rgba(139, 92, 246, 0.55);
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #e8e3ff;
+        box-shadow: 0 0 8px rgba(139, 92, 246, 0.8);
+      }
+
+      .footer {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        padding: 12px 14px;
+        color: var(--text-2);
+        font-size: 13px;
+      }
+
+      .footer-icons {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        color: #9eb3d8;
+      }
+
+      .footer-icons span {
+        border: 1px solid #334a72;
+        border-radius: 999px;
+        padding: 4px 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .playground {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        padding: 12px 14px;
+      }
+
+      .playground h3 {
+        margin: 0 0 10px;
+        font-size: 13px;
+        color: #8de9ff;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .playground-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .play-btn {
+        border: 1px solid #3e5b89;
+        background: #162945;
+        color: #c8dafd;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .play-btn.active {
+        border-color: rgba(139, 92, 246, 0.8);
+        color: #f4ecff;
+        background: rgba(139, 92, 246, 0.3);
+      }
+
+      .theme-modern {
+        --bg-0: #0a0c12;
+        --bg-1: rgba(20, 22, 30, 0.86);
+        --bg-2: rgba(32, 36, 48, 0.78);
+        --line: #47536f;
+        --line-soft: #3b4560;
+        --text-1: #f0f4ff;
+        --text-2: #b3c0da;
+      }
+
+      .anim-soft .sound.playing,
+      .anim-soft .btn.primary,
+      .anim-soft .dot,
+      .anim-soft .eq > span,
+      .anim-soft .wave > span,
+      .anim-soft .progress > span::after {
+        animation-duration: 2.8s !important;
+      }
+
+      .anim-off .sound.playing,
+      .anim-off .btn.primary,
+      .anim-off .dot,
+      .anim-off .eq > span,
+      .anim-off .wave > span,
+      .anim-off .progress > span::after {
+        animation: none !important;
+      }
+
+      @keyframes glowPulse {
+        0%, 100% { box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.45), 0 0 0 rgba(139, 92, 246, 0); }
+        50% { box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.75), 0 0 18px rgba(139, 92, 246, 0.35); }
+      }
+
+      @keyframes dotPulse {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.22); opacity: 1; }
+      }
+
+      @keyframes eqBounce {
+        0%, 100% { transform: scaleY(0.55); opacity: 0.7; }
+        50% { transform: scaleY(1); opacity: 1; }
+      }
+
+      @keyframes waveBounce {
+        0%, 100% { transform: scaleY(0.55); opacity: 0.7; }
+        50% { transform: scaleY(1.05); opacity: 1; }
+      }
+
+      @keyframes progressHead {
+        0% { transform: translateX(0); opacity: 0.5; }
+        50% { opacity: 0.95; }
+        100% { transform: translateX(2px); opacity: 0.5; }
+      }
+
+      @media (max-width: 1200px) {
+        .overview {
+          grid-template-columns: 1fr;
+        }
+        .layouts {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>GameSound FX 完整版 UX 设计稿 V1</h1>
+      <p class="sub">全量交付：设计系统 + 主界面 + 紧凑条 + Overlay + 设置页 + 异常状态示意</p>
+
+      <section class="overview">
+        <article class="card">
+          <h2>Design Tokens</h2>
+          <div class="body tokens">
+            <div class="token"><div class="swatch" style="background:#8b5cf6"></div>Primary / #8B5CF6</div>
+            <div class="token"><div class="swatch" style="background:#22d3ee"></div>Cyan / #22D3EE</div>
+            <div class="token"><div class="swatch" style="background:#22c55e"></div>Success / #22C55E</div>
+            <div class="token"><div class="swatch" style="background:#f59e0b"></div>Warning / #F59E0B</div>
+            <div class="token"><div class="swatch" style="background:#ef4444"></div>Danger / #EF4444</div>
+            <div class="token"><div class="swatch" style="background:#121b2b"></div>Card BG / #121B2B</div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>UX Guidelines</h2>
+          <div class="body notes">
+            <div>1. 游戏中操作优先：反馈在 120ms 内可见，禁止阻塞弹窗。</div>
+            <div>2. 主界面电竞极简，设置页轻毛玻璃，风格分层但不割裂。</div>
+            <div>3. 核心动作可盲操：播放/停止/搜索/切换模式都可键盘完成。</div>
+            <div>4. 异常显性化：快捷键冲突、文件缺失、设备离线都要可视反馈。</div>
+            <div>5. 文案短句化：避免长段文本，优先状态词与动作词。</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="layouts">
+        <article class="card">
+          <h2>Screen A - 主界面（完整版）</h2>
+          <div class="body">
+            <div class="window">
+              <div class="titlebar">
+                <span class="title-main">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 3v10.5a3.5 3.5 0 1 1-2-3.16V6l8-2v8.5a3.5 3.5 0 1 1-2-3.16V3z"/>
+                  </svg>
+                  GAME SOUND FX / HOME
+                </span>
+                <div class="dot-wrap"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              </div>
+              <div class="main-content">
+                <div class="top-row">
+                  <span class="chip">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                    ALL
+                  </span>
+                  <span class="chip">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 17.3-6.2 3.7 1.7-7.1L2 9.2l7.3-.6L12 2l2.7 6.6 7.3.6-5.5 4.7 1.7 7.1z"/></svg>
+                    FAVORITE
+                  </span>
+                  <span class="chip">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11c1.7 0 3-1.6 3-3.5S17.7 4 16 4s-3 1.6-3 3.5S14.3 11 16 11zM8 11c1.7 0 3-1.6 3-3.5S9.7 4 8 4 5 5.6 5 7.5 6.3 11 8 11zM2 20c0-2.8 2.2-5 5-5h2M12 20c0-3.3 2.7-6 6-6h1c1.7 0 3 1.3 3 3v3"/></svg>
+                    TEAM
+                  </span>
+                  <div class="search">搜索音效 / 分组 / 快捷键...</div>
+                </div>
+                <div class="sound-grid">
+                  <div class="sound playing"><div class="name"><span class="eq"><span></span><span></span><span></span><span></span></span>爆笑鼓掌（播放中）</div><span class="hotkey">Ctrl+1</span></div>
+                  <div class="sound"><div class="name">爆炸冲击波</div><span class="hotkey">Q</span></div>
+                  <div class="sound"><div class="name">经典台词-兄弟</div><span class="hotkey">E</span></div>
+                  <div class="sound"><div class="name">脚步声假报点</div><span class="hotkey">R</span></div>
+                  <div class="sound"><div class="name">倒地语音</div><span class="hotkey">T</span></div>
+                  <div class="sound"><div class="name">战术撤退</div><span class="hotkey">Y</span></div>
+                  <div class="sound error"><div class="name">文件丢失（需修复）</div><span class="hotkey">F</span></div>
+                  <div class="sound"><div class="name">胜利 BGM</div><span class="hotkey">Ctrl+G</span></div>
+                </div>
+                <div class="status-row">
+                  <span class="status success">音频设备已连接</span>
+                  <span class="status">Team Key: V</span>
+                  <span class="status warn">1 个快捷键冲突</span>
+                  <span class="status danger">1 个文件异常</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Screen B - 紧凑悬浮条（全状态）</h2>
+          <div class="body">
+            <div style="display:grid;gap:10px;">
+              <div class="compact">
+                <span class="chip">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M4 12h16"/></svg>
+                  LIVE
+                </span>
+                <div class="input">输入后回车立即播放首项（ESC 关闭）</div>
+                <span class="chip">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  搜索
+                </span>
+              </div>
+              <div class="compact" style="border-color:rgba(239,68,68,0.5);">
+                <span class="chip" style="border-color:rgba(239,68,68,0.5);color:#fca5a5;">ERROR</span>
+                <div class="input">快捷键冲突：Ctrl+1 已被“爆笑鼓掌”占用</div>
+                <span class="chip">Fix</span>
+              </div>
+              <div class="compact" style="border-color:rgba(34,197,94,0.5);">
+                <span class="chip" style="border-color:rgba(34,197,94,0.5);color:#86efac;">OK</span>
+                <div class="input">已切换到耳机输出：Headset (USB)</div>
+                <span class="chip">Done</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Screen C - Overlay（Now Playing + Event）</h2>
+          <div class="body overlay-zone">
+            <div class="overlay">
+              <div class="k">NOW PLAYING</div>
+              <div class="v">爆破胜利音效（12s）</div>
+              <div class="progress"><span></span></div>
+              <div class="wave"><span></span><span></span><span></span><span></span><span></span></div>
+              <div class="status-row">
+                <span class="status success">触发成功</span>
+                <span class="status">VOL 80%</span>
+              </div>
+            </div>
+            <div class="overlay" style="border-color:rgba(245,158,11,0.5);">
+              <div class="k" style="color:#fcd34d;">VALORANT EVENT</div>
+              <div class="v">检测到击杀事件：按 ` + 1~3 选择音效</div>
+              <div class="status-row">
+                <span class="status warn">等待输入</span>
+                <span class="status">超时 15s</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Screen D - 设置页（完整模块）</h2>
+          <div class="body">
+            <div class="settings">
+              <div class="head">SETTINGS / 快捷键 + 设备 + 视觉 + 游戏模式</div>
+              <div class="row"><span class="l">主题风格</span><span class="m">Hybrid Dark（主页电竞，设置玻璃）</span><span class="btn">切换</span></div>
+              <div class="row"><span class="l">输出设备</span><span class="m">Headset (USB Audio Device)</span><span class="btn">检测设备</span></div>
+              <div class="row"><span class="l">停止快捷键</span><span class="m">Ctrl + Shift + S</span><span class="btn primary">录制</span></div>
+              <div class="row"><span class="l">全局透明度</span><span class="m">72%（影响紧凑条与 Overlay）</span><span class="btn">调整</span></div>
+              <div class="row"><span class="l">Team Mode</span><span class="m">开启 / Team Key = V</span><span class="toggle" title="enabled"></span></div>
+              <div class="row"><span class="l">Valorant 模式</span><span class="m">开启（日志检测 + 事件提示）</span><span class="toggle" title="enabled"></span></div>
+              <div class="row"><span class="l">异常诊断</span><span class="m">1 个文件失效，1 个快捷键冲突</span><span class="btn">一键修复</span></div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="footer">
+        交付说明：本稿为完整版静态高保真，已覆盖核心页面和关键状态。下一步可以直接升级成交互原型（状态切换、主题切换、快捷键录制流程、异常处理流程）或拆成对应 React + Tailwind 组件并入 `src/components/`。
+        <div class="footer-icons">
+          <span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            微动效节奏 120-220ms
+          </span>
+          <span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+            图标统一线性风格
+          </span>
+          <span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M7 20V8"/><path d="M12 20V4"/><path d="M17 20v-6"/></svg>
+            播放态视觉强化
+          </span>
+        </div>
+      </section>
+
+      <section class="playground">
+        <h3>Interactive Playground / 设计验证台</h3>
+        <div class="playground-row">
+          <button id="themeHybrid" class="play-btn active">Hybrid Dark</button>
+          <button id="themeModern" class="play-btn">Modern Glass</button>
+          <button id="animHigh" class="play-btn active">动效强</button>
+          <button id="animSoft" class="play-btn">动效柔</button>
+          <button id="animOff" class="play-btn">动效关</button>
+          <button id="togglePlaying" class="play-btn">切换播放态卡片</button>
+        </div>
+      </section>
+    </div>
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var body = document.body;
+        var btns = {
+          themeHybrid: document.getElementById('themeHybrid'),
+          themeModern: document.getElementById('themeModern'),
+          animHigh: document.getElementById('animHigh'),
+          animSoft: document.getElementById('animSoft'),
+          animOff: document.getElementById('animOff'),
+          togglePlaying: document.getElementById('togglePlaying')
+        };
+
+        function setActive(keys, activeKey) {
+          keys.forEach(function (k) {
+            if (!btns[k]) return;
+            btns[k].classList.toggle('active', k === activeKey);
+          });
+        }
+
+        btns.themeHybrid.addEventListener('click', function () {
+          body.classList.remove('theme-modern');
+          setActive(['themeHybrid', 'themeModern'], 'themeHybrid');
+        });
+
+        btns.themeModern.addEventListener('click', function () {
+          body.classList.add('theme-modern');
+          setActive(['themeHybrid', 'themeModern'], 'themeModern');
+        });
+
+        btns.animHigh.addEventListener('click', function () {
+          root.classList.remove('anim-soft', 'anim-off');
+          setActive(['animHigh', 'animSoft', 'animOff'], 'animHigh');
+        });
+
+        btns.animSoft.addEventListener('click', function () {
+          root.classList.remove('anim-off');
+          root.classList.add('anim-soft');
+          setActive(['animHigh', 'animSoft', 'animOff'], 'animSoft');
+        });
+
+        btns.animOff.addEventListener('click', function () {
+          root.classList.remove('anim-soft');
+          root.classList.add('anim-off');
+          setActive(['animHigh', 'animSoft', 'animOff'], 'animOff');
+        });
+
+        btns.togglePlaying.addEventListener('click', function () {
+          var card = document.querySelector('.sound-grid .sound.playing');
+          if (!card) {
+            var first = document.querySelector('.sound-grid .sound');
+            if (first) first.classList.add('playing');
+            return;
+          }
+          card.classList.remove('playing');
+          var next = card.nextElementSibling;
+          if (next && next.classList.contains('sound')) next.classList.add('playing');
+          else {
+            var first2 = document.querySelector('.sound-grid .sound');
+            if (first2) first2.classList.add('playing');
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -91,8 +91,7 @@ function App() {
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const prevVolumeRef = useRef(0.8);
-  const [showSniffer, setShowSniffer] = useState(false);
-  const [showValorant, setShowValorant] = useState(false);
+  const [rightPanel, setRightPanel] = useState<'none' | 'valorant' | 'sniffer'>('none');
   const [valorantEnabled, setValorantEnabled] = useState(() => {
     return localStorage.getItem('valorantEnabled') === 'true';
   });
@@ -106,6 +105,17 @@ function App() {
     return localStorage.getItem('pickerPrefixKey') || '`';
   });
   const [valorantConnected, setValorantConnected] = useState(false);
+  const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  const showUxNotice = useCallback((type: 'error' | 'success', text: string) => {
+    setUxNotice({ type, text });
+  }, []);
+
+  useEffect(() => {
+    if (!uxNotice) return;
+    const timer = setTimeout(() => setUxNotice(null), 2200);
+    return () => clearTimeout(timer);
+  }, [uxNotice]);
 
   useEffect(() => {
     const savedShortcuts = localStorage.getItem('shortcuts');
@@ -696,9 +706,28 @@ function App() {
     setCurrentVolume(newVolume);
   }, []);
 
-  const addShortcut = useCallback((soundId: string, shortcut: string) => {
-    setShortcuts(prev => ({ ...prev, [shortcut]: soundId }));
-  }, []);
+  const addShortcut = useCallback((soundId: string, shortcut: string): boolean => {
+    if (!shortcut) return false;
+    if (stopShortcut === shortcut) {
+      showUxNotice('error', `快捷键 ${shortcut} 已用于停止播放`);
+      return false;
+    }
+    const existingOwner = shortcuts[shortcut];
+    if (existingOwner && existingOwner !== soundId) {
+      const ownerName = allSoundsRef.current.find(s => s.id === existingOwner)?.name || '其他音效';
+      showUxNotice('error', `快捷键 ${shortcut} 已被「${ownerName}」占用`);
+      return false;
+    }
+    setShortcuts(prev => {
+      const next = { ...prev };
+      const existing = Object.entries(next).find(([, sid]) => sid === soundId)?.[0];
+      if (existing && existing !== shortcut) delete next[existing];
+      next[shortcut] = soundId;
+      return next;
+    });
+    showUxNotice('success', `已设置快捷键：${shortcut}`);
+    return true;
+  }, [shortcuts, stopShortcut, showUxNotice]);
 
   const removeShortcut = useCallback((shortcut: string) => {
     setShortcuts(prev => {
@@ -708,9 +737,18 @@ function App() {
     });
   }, []);
 
-  const setStopShortcutHandler = useCallback((shortcut: string) => {
+  const setStopShortcutHandler = useCallback((shortcut: string): boolean => {
+    if (!shortcut) return false;
+    const occupiedBy = shortcuts[shortcut];
+    if (occupiedBy) {
+      const ownerName = allSoundsRef.current.find(s => s.id === occupiedBy)?.name || '某个音效';
+      showUxNotice('error', `停止快捷键与「${ownerName}」冲突：${shortcut}`);
+      return false;
+    }
     setStopShortcut(shortcut);
-  }, []);
+    showUxNotice('success', `已设置停止快捷键：${shortcut}`);
+    return true;
+  }, [shortcuts, showUxNotice]);
 
   const clearStopShortcut = useCallback(() => {
     setStopShortcut('');
@@ -1008,11 +1046,26 @@ function App() {
   }, [isMuted, currentVolume]);
 
   return (
-    <div className="app-shell relative w-full h-full border-2 border-accent flex flex-col overflow-hidden">
-      <TitleBar onSettingsClick={() => setShowSettings(true)} onValorantToggle={() => setShowValorant(prev => !prev)} showValorant={showValorant} valorantConnected={valorantConnected} teamMode={teamMode} onTeamToggle={() => setTeamMode(prev => !prev)} />
+    <div className="app-shell relative w-full h-full border border-accent/60 flex flex-col overflow-hidden">
+      <TitleBar
+        onSettingsClick={() => setShowSettings(true)}
+        onValorantToggle={() => setRightPanel(prev => (prev === 'valorant' ? 'none' : 'valorant'))}
+        showValorant={rightPanel === 'valorant'}
+        valorantConnected={valorantConnected}
+        teamMode={teamMode}
+        onTeamToggle={() => setTeamMode(prev => !prev)}
+      />
+      {uxNotice && (
+        <div className={`mx-3 mt-2 px-3 py-2 border rounded-lg text-sm ${
+          uxNotice.type === 'error'
+            ? 'border-accent-red bg-accent-red/10 text-accent-red'
+            : 'border-accent-green bg-accent-green/10 text-accent-green'
+        }`}>
+          {uxNotice.text}
+        </div>
+      )}
 
 
-      {!showValorant && (
       <GroupFilterBar
         groups={groups}
         activeGroupFilter={activeGroupFilter}
@@ -1020,91 +1073,98 @@ function App() {
         onGroupManagerClick={() => setShowGroupManager(true)}
         getGroupById={getGroupById}
       />
-      )}
 
-      {showValorant ? (
-        <ValorantPanel
-          onClose={() => setShowValorant(false)}
-        />
-      ) : showSniffer ? (
-        <OnlineSoundBrowser
-          onImport={handleImportFromPath}
-          onClose={() => setShowSniffer(false)}
-          targetGroupId={activeGroupFilter || undefined}
-          targetGroupName={activeGroupFilter ? getGroupById(activeGroupFilter)?.name : undefined}
-        />
-      ) : (
-        <>
-        <div className="toolbar-panel px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden>
-                <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
-                  <circle cx="10" cy="10" r="6" />
-                  <path d="M15 15l5 5" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                placeholder={copy.toolbar.searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input font-pixel pl-7"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-text-secondary hover:text-accent cursor-pointer"
-                >
-                  <svg shapeRendering="crispEdges" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
-                </button>
-              )}
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="px-3 py-2.5 border-b border-border-default bg-bg-secondary/50">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden>
+                  <svg shapeRendering="crispEdges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
+                    <circle cx="10" cy="10" r="6" />
+                    <path d="M15 15l5 5" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder={copy.toolbar.searchPlaceholder}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input pl-7 rounded-lg"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-text-secondary hover:text-accent cursor-pointer"
+                  >
+                    <svg shapeRendering="crispEdges" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={handleImportSounds}
+                className="px-3 py-2 border border-accent/40 bg-accent/10 text-accent text-sm rounded-lg cursor-pointer hover:bg-accent/20 transition-none inline-flex items-center gap-1.5"
+                title="导入本地音效文件"
+              >
+                <Cassette size={12} color={themeColor.accent} />
+                {copy.toolbar.import}
+              </button>
+              <button
+                onClick={() => setRightPanel(prev => (prev === 'sniffer' ? 'none' : 'sniffer'))}
+                className={`px-3 py-2 border text-sm rounded-lg cursor-pointer transition-none inline-flex items-center gap-1.5 ${
+                  rightPanel === 'sniffer'
+                    ? 'border-accent-gold bg-accent-gold/20 text-accent-gold'
+                    : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent-gold'
+                }`}
+                title="打开爱给网并捕获音频"
+              >
+                <Globe size={12} color={themeColor.gold} />
+                {copy.toolbar.sniffer}
+              </button>
             </div>
-            <button
-              onClick={handleImportSounds}
-              className="btn-retro btn-retro-accent font-pixel btn-retro-icon"
-              title="导入本地音效文件"
-            >
-              <Cassette size={12} color={themeColor.accent} />
-              {copy.toolbar.import}
-            </button>
-            <button
-              onClick={() => setShowSniffer(true)}
-              className="btn-retro btn-retro-gold font-pixel btn-retro-icon"
-              title="打开爱给网并捕获音频"
-            >
-              <Globe size={12} color={themeColor.gold} />
-              {copy.toolbar.sniffer}
-            </button>
+            <div className="mt-1.5 flex items-center justify-between gap-2 min-h-[14px]">
+              <span className="meta-label">
+                {activeGroupFilter
+                  ? `${copy.toolbar.groupPrefix} · ${getGroupById(activeGroupFilter)?.name ?? '—'}`
+                  : copy.toolbar.allSounds}
+              </span>
+              <span className="meta-label text-accent-cyan tabular-nums">
+                {copy.toolbar.count(filteredSounds.length, allSounds.length)}
+              </span>
+            </div>
           </div>
-          <div className="mt-1.5 flex items-center justify-between gap-2 min-h-[14px]">
-            <span className="meta-label font-pixel">
-              {activeGroupFilter
-                ? `${copy.toolbar.groupPrefix} · ${getGroupById(activeGroupFilter)?.name ?? '—'}`
-                : copy.toolbar.allSounds}
-            </span>
-            <span className="meta-label font-pixel text-accent-cyan tabular-nums">
-              {copy.toolbar.count(filteredSounds.length, allSounds.length)}
-            </span>
-          </div>
+
+          <SoundGrid
+            sounds={filteredSounds}
+            playingSound={playingSound}
+            onToggleSound={toggleSound}
+            shortcuts={shortcuts}
+            onAddShortcut={addShortcut}
+            onRemoveShortcut={removeShortcut}
+            onDeleteSound={handleDeleteSound}
+            groups={groups}
+            soundGroupMap={soundGroupMap}
+            onAddSoundToGroup={addSoundToGroup}
+            onRemoveSoundFromGroup={removeSoundFromGroup}
+            getGroupById={getGroupById}
+          />
         </div>
 
-        <SoundGrid
-          sounds={filteredSounds}
-          playingSound={playingSound}
-          onToggleSound={toggleSound}
-          shortcuts={shortcuts}
-          onAddShortcut={addShortcut}
-          onRemoveShortcut={removeShortcut}
-          onDeleteSound={handleDeleteSound}
-          groups={groups}
-          soundGroupMap={soundGroupMap}
-          onAddSoundToGroup={addSoundToGroup}
-          onRemoveSoundFromGroup={removeSoundFromGroup}
-          getGroupById={getGroupById}
-        />
-        </>
-      )}
+        {rightPanel !== 'none' && (
+          <aside className="w-[390px] min-w-[340px] max-w-[45%] border-l-2 border-border-default bg-bg-secondary/70 flex">
+            {rightPanel === 'valorant' ? (
+              <ValorantPanel onClose={() => setRightPanel('none')} />
+            ) : (
+              <OnlineSoundBrowser
+                onImport={handleImportFromPath}
+                onClose={() => setRightPanel('none')}
+                targetGroupId={activeGroupFilter || undefined}
+                targetGroupName={activeGroupFilter ? getGroupById(activeGroupFilter)?.name : undefined}
+              />
+            )}
+          </aside>
+        )}
+      </div>
 
       <StatusBar
         volume={currentVolume}

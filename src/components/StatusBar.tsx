@@ -24,7 +24,9 @@ interface AudioDevice {
 function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, hasLastSound, selectedDevice, onDeviceChange, currentSoundName, isMuted, onMuteToggle }: StatusBarProps) {
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [showDeviceMenu, setShowDeviceMenu] = useState(false);
+  const [deviceFeedback, setDeviceFeedback] = useState<string | null>(null);
   const initialDevice = useRef(selectedDevice);
+  const deviceMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const getDevices = async () => {
@@ -58,6 +60,31 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
     getDevices();
   }, []);
 
+  useEffect(() => {
+    if (!showDeviceMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!deviceMenuRef.current?.contains(target)) {
+        setShowDeviceMenu(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDeviceMenu(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showDeviceMenu]);
+
+  useEffect(() => {
+    if (!deviceFeedback) return;
+    const timer = setTimeout(() => setDeviceFeedback(null), 1800);
+    return () => clearTimeout(timer);
+  }, [deviceFeedback]);
+
   const getSelectedDeviceLabel = () => {
     const device = devices.find(d => d.id === selectedDevice);
     return device?.label || copy.status.selectDevice;
@@ -68,11 +95,11 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
       <button
         onClick={() => isPlaying ? onPause() : onPlayLast()}
         disabled={!hasLastSound && !isPlaying}
-        className={`shrink-0 w-7 h-7 border-2 flex items-center justify-center cursor-pointer transition-none rounded-none
+        className={`shrink-0 w-8 h-8 border flex items-center justify-center cursor-pointer transition-none rounded-lg
           ${isPlaying
             ? 'border-accent-green bg-accent-green/10 text-accent-green'
             : hasLastSound
-              ? 'border-accent bg-accent/10 text-accent hover:bg-accent hover:text-black'
+              ? 'border-accent bg-accent/10 text-accent hover:bg-accent/20'
               : 'border-border-default bg-bg-tertiary text-text-secondary cursor-not-allowed'
           }`}
       >
@@ -87,7 +114,7 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
       {currentSoundName && (
         <div className="flex items-center gap-1 max-w-[140px] min-w-0 shrink-0" title={currentSoundName}>
           <span className="shrink-0"><MusicNote size={10} color="#ff5ca0" /></span>
-          <span className="text-base font-pixel text-accent-pink truncate">{currentSoundName}</span>
+          <span className="text-sm font-medium text-accent-pink truncate">{currentSoundName}</span>
           {isPlaying && (
             <span className="shrink-0 flex items-end gap-0.5" style={{ height: 12 }}>
               <span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" />
@@ -99,7 +126,7 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
       {/* Mute toggle */}
       <button
         onClick={onMuteToggle}
-        className={`shrink-0 w-6 h-6 flex items-center justify-center border-2 rounded-none cursor-pointer transition-none
+        className={`shrink-0 w-7 h-7 flex items-center justify-center border rounded-lg cursor-pointer transition-none
           ${isMuted
             ? 'border-accent-red bg-accent-red/10 text-accent-red'
             : 'border-border-default bg-bg-tertiary text-text-secondary hover:border-accent hover:text-accent'}`}
@@ -113,26 +140,35 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
           onVolumeChange(parseFloat(e.target.value));
           if (isMuted) onMuteToggle();
         }} className="volume-slider w-[80px]" />
-        <span className="text-lg font-pixel text-text-secondary w-[30px] text-right">
+        <span className="text-sm text-text-secondary w-[36px] text-right tabular-nums">
           {isMuted ? copy.status.volumeOff : Math.round(volume * 100) + '%'}
         </span>
       </div>
 
-      <div className="relative flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0" ref={deviceMenuRef}>
         <button
           onClick={() => setShowDeviceMenu(!showDeviceMenu)}
-          className="flex items-center gap-1 px-2 py-1 border-2 border-border-default bg-bg-tertiary text-base text-text-primary cursor-pointer hover:border-accent hover:shadow-retro-sm transition-none w-full rounded-none"
+          className="flex items-center gap-1 px-2.5 py-2 border border-border-default bg-bg-tertiary text-sm text-text-primary cursor-pointer hover:border-accent transition-none w-full rounded-lg"
         >
           <span className="truncate">{getSelectedDeviceLabel()}</span>
-          <span className="text-accent font-pixel text-xs shrink-0">{showDeviceMenu ? '▲' : '▼'}</span>
+          <span className="text-accent text-xs shrink-0">{showDeviceMenu ? '▲' : '▼'}</span>
         </button>
+        {deviceFeedback && (
+          <div className="absolute -top-8 right-0 px-2 py-1 border border-accent-green bg-bg-secondary text-accent-green text-xs rounded-lg whitespace-nowrap z-[120]">
+            {deviceFeedback}
+          </div>
+        )}
         {showDeviceMenu && (
-          <div className="absolute bottom-full right-0 mb-1 w-[200px] bg-bg-secondary border-2 border-accent rounded-none p-1 z-[100]">
+          <div className="absolute bottom-full right-0 mb-1 w-[220px] bg-bg-secondary border border-accent rounded-xl p-1 z-[100] shadow-retro-sm">
             {devices.map(device => (
               <button
                 key={device.id}
-                onClick={() => { onDeviceChange(device.id); setShowDeviceMenu(false); }}
-                className={`w-full px-2 py-1 text-base text-left cursor-pointer border-2 transition-all duration-100 truncate rounded-none
+                onClick={() => {
+                  onDeviceChange(device.id);
+                  setShowDeviceMenu(false);
+                  setDeviceFeedback(`已切换：${device.label}`);
+                }}
+                className={`w-full px-2.5 py-1.5 text-sm text-left cursor-pointer border transition-all duration-100 truncate rounded-lg
                   ${selectedDevice === device.id ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-text-primary hover:border-border-default'}`}
               >
                 {device.label}

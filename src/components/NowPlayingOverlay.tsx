@@ -49,8 +49,8 @@ function NowPlayingOverlay({ playingSound, allSounds }: NowPlayingOverlayProps) 
         opacity: playingSound ? 1 : 0,
       }}
     >
-      <div className="border-2 border-l-0 border-accent-pink bg-bg-secondary/95 pl-3 pr-4 py-3"
-        style={{ boxShadow: '4px 0 12px rgba(255, 77, 199, 0.3)' }}>
+      <div className="border border-l-0 border-accent-pink/70 bg-bg-secondary/92 pl-3 pr-4 py-3 rounded-r-xl"
+        style={{ boxShadow: '0 8px 20px rgba(34, 211, 238, 0.22)' }}>
         <div className="flex items-center gap-3">
           {/* EQ bars */}
           <div className="flex items-end gap-px h-6">
@@ -59,7 +59,7 @@ function NowPlayingOverlay({ playingSound, allSounds }: NowPlayingOverlayProps) 
             <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar3 0.7s ease-in-out infinite' }} />
             <div className="eq-bar w-[3px] bg-accent-pink" style={{ height: '100%', animation: 'bounce-bar4 0.55s ease-in-out infinite' }} />
           </div>
-          <span className="font-pixel text-sm text-accent-pink whitespace-nowrap overflow-hidden text-ellipsis max-w-[160px]">
+          <span className="text-sm font-medium text-accent-pink whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">
             {currentName}
           </span>
         </div>

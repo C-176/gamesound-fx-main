@@ -11,7 +11,7 @@ function SectionTitle({ icon, children, variant = 'cyan' }: SectionTitleProps) {
     variant === 'danger' ? 'text-accent-red' : variant === 'accent' ? 'text-accent' : 'text-accent-cyan';
 
   return (
-    <h3 className={`section-title font-pixel ${colorClass}`}>
+    <h3 className={`section-title text-sm font-semibold ${colorClass}`}>
       {icon ? <span className="section-title-icon">{icon}</span> : null}
       <span>{children}</span>
     </h3>

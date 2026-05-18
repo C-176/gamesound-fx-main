@@ -110,12 +110,12 @@ function ValorantPanel({ onClose }: ValorantPanelProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden p-3 gap-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-base font-pixel text-accent flex items-center gap-1.5">
+        <span className="text-sm font-semibold text-accent flex items-center gap-1.5">
           <Satellite size={12} color={themeColor.accent} /> {copy.valorant.title}
         </span>
         {onClose && (
           <div className="flex items-center gap-1.5">
-            <div className={`flex items-center gap-1 px-2 py-0.5 border-2 font-pixel text-xs ${
+            <div className={`flex items-center gap-1 px-2 py-1 border rounded-lg text-xs ${
               status.connected
                 ? 'border-accent-green text-accent-green'
                 : 'border-accent-red text-accent-red'
@@ -123,59 +123,59 @@ function ValorantPanel({ onClose }: ValorantPanelProps) {
               <span className={`w-2 h-2 ${status.connected ? 'bg-accent-green' : 'bg-accent-red'}`} />
               {status.connected ? copy.valorant.connected : copy.valorant.disconnected}
             </div>
-            <button onClick={onClose} className="w-7 h-7 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+            <button onClick={onClose} className="w-8 h-8 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
               <CloseX size={12} color="var(--text-secondary)" />
             </button>
           </div>
         )}
       </div>
 
-      <div className="flex-1 border-2 border-border-default rounded-none overflow-hidden flex flex-col">
-        <div className="px-3 py-2 bg-bg-secondary border-b-2 border-border-default">
-          <span className="text-base text-text-primary font-pixel">{copy.valorant.bindings}</span>
+      <div className="flex-1 border border-border-default rounded-xl overflow-hidden flex flex-col">
+        <div className="px-3 py-2 bg-bg-secondary border-b border-border-default">
+          <span className="text-sm text-text-primary font-medium">{copy.valorant.bindings}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
           {VALORANT_EVENTS.map((event) => {
             const boundSounds = bindings[event] || [];
             return (
-              <div key={event} className="px-3 py-2.5 bg-bg-tertiary border-2 border-border-default mb-2 rounded-none">
+              <div key={event} className="px-3 py-2.5 bg-bg-tertiary border border-border-default mb-2 rounded-lg">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-base text-text-primary font-pixel">{VALORANT_EVENT_LABELS[event]}</span>
+                  <span className="text-sm text-text-primary font-medium">{VALORANT_EVENT_LABELS[event]}</span>
                   <div className="flex gap-1.5 shrink-0">
                     <button onClick={() => setShowPicker(showPicker === event ? null : event)}
-                      className={`btn-retro-icon px-2 py-1 border-2 text-base font-pixel cursor-pointer transition-none rounded-none ${
+                      className={`btn-retro-icon px-2.5 py-1.5 border text-sm cursor-pointer transition-none rounded-lg ${
                         showPicker === event
-                          ? 'border-accent-gold bg-accent-gold text-black'
-                          : 'border-accent bg-accent text-black hover:bg-accent-gold hover:border-accent-gold'
+                          ? 'border-accent-gold bg-accent-gold/20 text-accent-gold'
+                          : 'border-accent bg-accent/12 text-accent hover:bg-accent/22'
                       }`}>
                       + {copy.valorant.addSound}
                     </button>
                     {boundSounds.length > 0 && (
                       <button onClick={() => clearBinding(event)}
-                        className="px-2 py-1 border-2 border-accent-red bg-transparent text-accent-red text-base font-pixel cursor-pointer hover:bg-accent-red hover:text-white transition-none rounded-none">
+                        className="px-2 py-1 border border-accent-red bg-transparent text-accent-red text-sm cursor-pointer hover:bg-accent-red/15 transition-none rounded-lg">
                         {copy.common.clear}
                       </button>
                     )}
                   </div>
                 </div>
                 {boundSounds.length === 0 ? (
-                  <div className="text-base font-pixel text-text-secondary">{copy.common.none}</div>
+                  <div className="text-sm text-text-secondary">{copy.common.none}</div>
                 ) : (
                   boundSounds.map((soundId, idx) => (
-                    <div key={soundId} className="flex items-center justify-between py-1 px-2 border-2 border-border-default mt-1 rounded-none bg-bg-secondary">
+                    <div key={soundId} className="flex items-center justify-between py-1.5 px-2.5 border border-border-default mt-1 rounded-lg bg-bg-secondary">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-accent font-pixel w-4">{idx + 1}.</span>
-                        <span className="text-base text-text-primary font-pixel">{getSoundName(soundId)}</span>
+                        <span className="text-xs text-accent w-4">{idx + 1}.</span>
+                        <span className="text-sm text-text-primary">{getSoundName(soundId)}</span>
                       </div>
                       <div className="flex gap-1">
                         <button onClick={() => playPreview(soundId)}
-                          className="w-6 h-6 border-2 border-accent bg-accent/10 text-accent flex items-center justify-center cursor-pointer hover:bg-accent hover:text-black transition-none rounded-none"
+                          className="w-7 h-7 border border-accent bg-accent/10 text-accent flex items-center justify-center cursor-pointer hover:bg-accent/20 transition-none rounded-lg"
                           title={copy.valorant.preview}>
                           <PlayTriangle size={10} color="currentColor" />
                         </button>
                         <button onClick={() => removeSound(event, soundId)}
-                          className="w-6 h-6 border-2 border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none"
+                          className="w-7 h-7 border border-border-default bg-bg-tertiary text-text-secondary flex items-center justify-center cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg"
                           title={copy.valorant.remove}>
                           <CloseX size={10} color="currentColor" />
                         </button>
@@ -190,34 +190,34 @@ function ValorantPanel({ onClose }: ValorantPanelProps) {
       </div>
 
       {showPicker && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]" onClick={() => setShowPicker(null)}>
-          <div className="bg-bg-secondary border-2 border-accent rounded-none p-5 min-w-[350px] max-w-[450px] w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-pixel text-base text-accent mb-4">{copy.valorant.pickerTitle(VALORANT_EVENT_LABELS[showPicker])}</h3>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]" onClick={() => setShowPicker(null)}>
+          <div className="bg-bg-secondary border border-accent/55 rounded-xl p-5 min-w-[350px] max-w-[450px] w-full mx-4 shadow-retro" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-accent mb-4">{copy.valorant.pickerTitle(VALORANT_EVENT_LABELS[showPicker])}</h3>
             <input
               type="text"
               value={pickerSearch}
               onChange={(e) => setPickerSearch(e.target.value)}
               placeholder={copy.valorant.searchPlaceholder}
-              className="w-full px-2.5 py-2 bg-bg-tertiary border-2 border-border-default text-text-primary text-base font-pixel outline-none focus:border-accent transition-none mb-4 rounded-none"
+              className="w-full px-3 py-2 bg-bg-tertiary border border-border-default text-text-primary text-sm outline-none focus:border-accent transition-none mb-4 rounded-lg"
               autoFocus
             />
             <div className="max-h-[300px] overflow-y-auto">
               {filteredSounds.length === 0 ? (
-                <div className="text-center py-4 text-text-secondary font-pixel">{copy.valorant.notFound}</div>
+                <div className="text-center py-4 text-text-secondary text-sm">{copy.valorant.notFound}</div>
               ) : filteredSounds.map((sound) => {
                 const isSelected = (bindings[showPicker] || []).includes(sound.id);
                 return (
                 <div key={sound.id}
                   onClick={() => toggleSound(showPicker, sound.id)}
-                  className={`flex items-center justify-between px-3 py-2 border-2 mb-1 cursor-pointer transition-none rounded-none ${
+                  className={`flex items-center justify-between px-3 py-2 border mb-1 cursor-pointer transition-none rounded-lg ${
                     isSelected
                       ? 'border-accent-green bg-accent-green/10'
                       : 'border-border-default bg-bg-tertiary hover:border-accent hover:bg-accent/5'
                   }`}>
-                  <span className="text-base text-text-primary font-pixel">{sound.name}</span>
+                  <span className="text-sm text-text-primary">{sound.name}</span>
                   <div className="flex items-center gap-1">
                     {isSelected && <Checkmark size={10} color="var(--accent-green)" />}
-                    <span className={`text-xs font-pixel ${isSelected ? 'text-accent-green' : 'text-accent'}`}>
+                    <span className={`text-xs ${isSelected ? 'text-accent-green' : 'text-accent'}`}>
                       {isSelected ? copy.valorant.bound : copy.valorant.bind}
                     </span>
                   </div>
@@ -227,11 +227,11 @@ function ValorantPanel({ onClose }: ValorantPanelProps) {
             </div>
             <div className="mt-4 flex gap-2">
               <button onClick={() => setShowPicker(null)}
-                className="flex-1 px-3 py-1.5 border-2 border-accent bg-transparent text-accent text-base font-pixel cursor-pointer hover:bg-accent hover:text-black transition-none rounded-none">
+                className="flex-1 px-3 py-1.5 border border-accent bg-transparent text-accent text-sm cursor-pointer hover:bg-accent/20 transition-none rounded-lg">
                 {copy.common.ok}
               </button>
               <button onClick={() => setShowPicker(null)}
-                className="px-3 py-1.5 border-2 border-border-default bg-transparent text-text-secondary text-base font-pixel cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-none">
+                className="px-3 py-1.5 border border-border-default bg-transparent text-text-secondary text-sm cursor-pointer hover:border-accent-red hover:text-accent-red transition-none rounded-lg">
                 {copy.common.cancel}
               </button>
             </div>
