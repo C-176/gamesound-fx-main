@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('electron', {
         'valorant-match-info',
         'valorant-agent-selected',
         'valorant-picker-show',
+        'valorant-picker-update',
         'valorant-picker-hide',
       ];
       if (validChannels.includes(channel)) {

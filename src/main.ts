@@ -426,10 +426,14 @@ function startKeyPolling() {
     return;
   }
 
-  console.log('[poll] koffi-based polling started');
-  pollingTimer = setInterval(() => {
+  const POLL_INTERVAL_MS = 50;
+
+  const pollTick = () => {
     try {
-      if (isRecordingShortcut) return;
+      if (isRecordingShortcut) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS); return; }
+
+      const hasShortcuts = soundShortcutMap.size > 0 || (stopShortcutKey && stopShortcutKey !== '');
+      if (!hasShortcuts && !pendingPicker) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS); return; }
 
       // --- Track prefix key state (for Valorant picker) ---
       const prefixVK = VK_MAP[pickerPrefixKeyName];
@@ -454,7 +458,7 @@ function startKeyPolling() {
             console.log('[poll] picker selected:', i, pendingPicker.choices[i].name);
             clearTimeout(pendingPicker.timer);
             pendingPicker.timer = setTimeout(() => {
-              overlayWindow?.webContents.send('valorant-picker-hide');
+              if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
               pendingPicker = null;
             }, 3000);
             mainWindow?.webContents.send('shortcut-triggered', pendingPicker.choices[i].id);
@@ -524,8 +528,12 @@ function startKeyPolling() {
         prevShortcutState['__F12__'] = f12Pressed;
       }
 
-          } catch (_e) { /* poll error */ }
-  }, 30);
+    } catch (_e) { /* poll error */ }
+    pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS);
+  };
+
+  console.log('[poll] koffi-based polling started');
+  pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS);
 }
 function startExePolling(exePath: string) {
   let pollProcess: any = null;
@@ -561,11 +569,11 @@ function startExePolling(exePath: string) {
           '-ExecutionPolicy', 'Bypass',
           '-File', exePath,
           '-VkCodes', vkCodes,
-          '-IntervalMs', '30'
+          '-IntervalMs', '50'
         ];
         pollProcess = spawn('powershell', procArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
       } else {
-        procArgs = [vkCodes, '30'];
+        procArgs = [vkCodes, '50'];
         pollProcess = spawn(exePath, procArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
       }
 
@@ -635,6 +643,8 @@ const createOverlayWindow = () => {
     type: 'toolbar',
     webPreferences: {
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
@@ -651,6 +661,16 @@ const createOverlayWindow = () => {
   overlayWindow.on('closed', () => {
     overlayWindow = null;
   });
+};
+
+// ensureOverlayWindow creates the overlay on first use (lazy init).
+// Use it for show/update IPC calls that need the overlay to exist.
+// For hide IPC calls, use `if (overlayWindow)` — it's a no-op when the
+// overlay doesn't exist, and ensureOverlayWindow would re-create it
+// just to send a hide message, wasting resources.
+const ensureOverlayWindow = (): BrowserWindow | null => {
+  if (!overlayWindow) createOverlayWindow();
+  return overlayWindow;
 };
 
 const buildTrayMenu = (): Menu => {
@@ -716,6 +736,8 @@ const createWindow = (): void => {
     title: 'GameSound FX - 游戏音效助手',
     webPreferences: {
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
@@ -951,16 +973,13 @@ app.whenReady().then(() => {
     console.log('[GameSound FX] 托盘创建失败:', err);
   }
 
-  createOverlayWindow();
-  console.log('[GameSound FX] 覆盖窗口已创建');
-
   startKeyPolling();
   console.log('[GameSound FX] 键盘轮询后备已启动');
 
   valorantDetector = new ValorantLogDetector(
     (payload: ValorantEventPayload) => {
       mainWindow?.webContents.send('valorant-event-fired', payload);
-      overlayWindow?.webContents.send('valorant-event-fired', payload);
+      ensureOverlayWindow()?.webContents.send('valorant-event-fired', payload);
     },
     (status: ValorantStatus) => {
       mainWindow?.webContents.send('valorant-status-changed', status);
@@ -1039,6 +1058,7 @@ app.whenReady().then(() => {
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
+        sandbox: true,
       },
     });
 
@@ -1167,10 +1187,10 @@ app.whenReady().then(() => {
 
   // Forward now-playing data from the main renderer to the overlay window
   ipcMain.on('overlay-show-now-playing', (_event, soundName: string) => {
-    overlayWindow?.webContents.send('now-playing-changed', soundName);
+    ensureOverlayWindow()?.webContents.send('now-playing-changed', soundName);
   });
   ipcMain.on('overlay-hide-now-playing', () => {
-    overlayWindow?.webContents.send('now-playing-changed', null);
+    ensureOverlayWindow()?.webContents.send('now-playing-changed', null);
   });
 
   ipcMain.on('get-valorant-status', (event) => {
@@ -1189,7 +1209,7 @@ app.whenReady().then(() => {
     pickerPrefixKeyName = data.keyName;
     // Update overlay hint if picker is showing
     if (pendingPicker) {
-      overlayWindow?.webContents.send('valorant-picker-update', {
+      ensureOverlayWindow()?.webContents.send('valorant-picker-update', {
         choices: pendingPicker.choices,
         prefixKeyName: pickerPrefixKeyName,
       });
@@ -1227,7 +1247,9 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('read-imported-sound', async (_event, fileName: string) => {
-    const filePath = path.join(getImportedSoundsDir(), fileName);
+    const dir = getImportedSoundsDir();
+    const filePath = path.resolve(dir, fileName);
+    if (!filePath.startsWith(dir)) return null;
     try {
       const data = fs.readFileSync(filePath);
       const ext = path.extname(filePath).toLowerCase();
@@ -1243,19 +1265,24 @@ app.whenReady().then(() => {
 
   ipcMain.handle('read-builtin-sound', async (_event, fileName: string) => {
     // Try production path first (packaged app: resources/sounds/)
-    const prodPath = path.join(process.resourcesPath, 'sounds', fileName);
-    try {
-      const data = fs.readFileSync(prodPath);
-      const ext = path.extname(prodPath).toLowerCase();
-      const mimeTypes: Record<string, string> = {
-        '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4', '.flac': 'audio/flac',
-      };
-      return { data: data.toString('base64'), mimeType: mimeTypes[ext] || 'audio/mpeg' };
-    } catch { /* try dev path */ }
+    const prodDir = path.join(process.resourcesPath, 'sounds');
+    const prodPath = path.resolve(prodDir, fileName);
+    if (prodPath.startsWith(prodDir)) {
+      try {
+        const data = fs.readFileSync(prodPath);
+        const ext = path.extname(prodPath).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+          '.m4a': 'audio/mp4', '.flac': 'audio/flac',
+        };
+        return { data: data.toString('base64'), mimeType: mimeTypes[ext] || 'audio/mpeg' };
+      } catch { /* try dev path */ }
+    }
 
     // Fallback: dev path (npm run dev)
-    const devPath = path.join(__dirname, '..', 'public', 'sounds', fileName);
+    const devDir = path.join(__dirname, '..', 'public', 'sounds');
+    const devPath = path.resolve(devDir, fileName);
+    if (!devPath.startsWith(devDir)) return null;
     try {
       const data = fs.readFileSync(devPath);
       const ext = path.extname(devPath).toLowerCase();
@@ -1270,15 +1297,17 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('delete-imported-sound', async (_event, fileName: string) => {
+    const dir = getImportedSoundsDir();
+    const filePath = path.resolve(dir, fileName);
+    if (!filePath.startsWith(dir)) return;
     try {
-      const dir = getImportedSoundsDir();
-      const filePath = path.join(dir, fileName);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         console.log(`[GameSound FX] 导入音效已删除: ${filePath}`);
       }
     } catch (err) {
       console.log(`[GameSound FX] 删除导入音效失败: ${fileName}`, err);
+      throw err;
     }
   });
 
@@ -1303,19 +1332,19 @@ app.whenReady().then(() => {
       clearTimeout(pendingPicker.timer);
       pendingPicker.choices = data.choices;
       pendingPicker.timer = setTimeout(() => {
-        overlayWindow?.webContents.send('valorant-picker-hide');
+        if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
         pendingPicker = null;
       }, timeoutMs);
-      overlayWindow?.webContents.send('valorant-picker-update', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
+      ensureOverlayWindow()?.webContents.send('valorant-picker-update', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
     } else {
       pendingPicker = {
         choices: data.choices,
         timer: setTimeout(() => {
-          overlayWindow?.webContents.send('valorant-picker-hide');
+          if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
           pendingPicker = null;
         }, timeoutMs),
       };
-      overlayWindow?.webContents.send('valorant-picker-show', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
+      ensureOverlayWindow()?.webContents.send('valorant-picker-show', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
     }
   });
 
@@ -1324,7 +1353,7 @@ app.whenReady().then(() => {
       clearTimeout(pendingPicker.timer);
       pendingPicker = null;
     }
-    overlayWindow?.webContents.send('valorant-picker-hide');
+    if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
   });
 
   console.log('[GameSound FX] 应用已启动 - 支持全屏游戏悬浮使用');
