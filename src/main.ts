@@ -30,6 +30,12 @@ let isRecordingShortcut = false;
 // uiohook-napi 低层键盘钩子（全屏游戏下仍能捕获快捷键）
 const soundShortcutMap = new Map<string, string>();
 let stopShortcutKey = '';
+interface CompiledShortcut {
+  vk: number;
+  mask: number;
+}
+const compiledSoundShortcuts = new Map<string, CompiledShortcut>();
+let compiledStopShortcut: CompiledShortcut | null = null;
 
 // uiohook-napi 的 keycode 基于 IBM PC AT Set 1 扫描码（非 HID Usage ID）
 const KEY_NAME_MAP: Record<number, string> = {
@@ -100,7 +106,7 @@ const systemShortcutActions: Record<string, () => void> = {
 const capturedSounds: Record<string, { url: string; name: string; timestamp: number }> = {};
 
 // ─── Win32 polling fallback (works in exclusive fullscreen games) ───
-let pollingTimer: ReturnType<typeof setInterval> | null = null;
+let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 const prevShortcutState: Record<string, boolean> = {};
 // Lazy-init koffi so it doesn't prevent startup if module is unavailable
 let getAsyncKeyState: ((vkCode: number) => number) | null = null;
@@ -356,6 +362,17 @@ function shortcutModifierMask(parts: string[]): number {
   return mask;
 }
 
+function compileShortcut(shortcut: string): CompiledShortcut | null {
+  const parts = shortcut.split('+');
+  const keyName = parts[parts.length - 1];
+  const vk = VK_MAP[keyName];
+  if (!vk) return null;
+  return {
+    vk,
+    mask: shortcutModifierMask(parts),
+  };
+}
+
 function modifiersMatch(parts: string[], activeMask: number): boolean {
   return shortcutModifierMask(parts) === activeMask;
 }
@@ -426,14 +443,16 @@ function startKeyPolling() {
     return;
   }
 
-  const POLL_INTERVAL_MS = 50;
+  const POLL_INTERVAL_FAST_MS = 50;
+  const POLL_INTERVAL_IDLE_MS = 140;
 
   const pollTick = () => {
+    let nextIntervalMs = POLL_INTERVAL_IDLE_MS;
     try {
-      if (isRecordingShortcut) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS); return; }
+      if (isRecordingShortcut) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_IDLE_MS); return; }
 
       const hasShortcuts = soundShortcutMap.size > 0 || (stopShortcutKey && stopShortcutKey !== '');
-      if (!hasShortcuts && !pendingPicker) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS); return; }
+      if (!hasShortcuts && !pendingPicker) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_IDLE_MS); return; }
 
       // --- Track prefix key state (for Valorant picker) ---
       const prefixVK = VK_MAP[pickerPrefixKeyName];
@@ -442,9 +461,7 @@ function startKeyPolling() {
       }
 
       const activeMask = readModifierMask();
-      const keysToCheck: string[] = [];
-      for (const k of soundShortcutMap.keys()) keysToCheck.push(k);
-      if (stopShortcutKey && stopShortcutKey !== '') keysToCheck.push(stopShortcutKey);
+      if (pendingPicker || pickerPrefixHeld || activeMask !== 0) nextIntervalMs = POLL_INTERVAL_FAST_MS;
 
       // --- Valorant picker: number keys while prefix held ---
       if (pendingPicker && pickerPrefixHeld) {
@@ -455,7 +472,6 @@ function startKeyPolling() {
           const pressed = (getAsyncKeyState!(numVK) & 0x8000) !== 0;
           const wasPressed = prevShortcutState['__picker_' + numKey] || false;
           if (pressed && !wasPressed && i < pendingPicker.choices.length) {
-            console.log('[poll] picker selected:', i, pendingPicker.choices[i].name);
             clearTimeout(pendingPicker.timer);
             pendingPicker.timer = setTimeout(() => {
               if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
@@ -470,25 +486,31 @@ function startKeyPolling() {
 
 
       // --- Check sound shortcuts and stop shortcut ---
-      for (const shortcutStr of keysToCheck) {
-        const parts = shortcutStr.split('+');
-        const keyName = parts[parts.length - 1];
-        const vkKey = VK_MAP[keyName];
-        if (!vkKey) continue;
-
-        if (!modifiersMatch(parts, activeMask)) {
+      for (const [shortcutStr, compiled] of compiledSoundShortcuts.entries()) {
+        if (compiled.mask !== activeMask) {
           prevShortcutState[shortcutStr] = false;
           continue;
         }
 
-        const chordPressed = (getAsyncKeyState!(vkKey) & 0x8000) !== 0;
+        const chordPressed = (getAsyncKeyState!(compiled.vk) & 0x8000) !== 0;
         const wasPressed = prevShortcutState[shortcutStr] || false;
 
         if (chordPressed && !wasPressed) {
-          if (shortcutStr === stopShortcutKey) mainWindow?.webContents.send('stop-shortcut-triggered');
-          else { const sid = soundShortcutMap.get(shortcutStr); if (sid) mainWindow?.webContents.send('shortcut-triggered', sid); }
+          const sid = soundShortcutMap.get(shortcutStr);
+          if (sid) mainWindow?.webContents.send('shortcut-triggered', sid);
         }
         prevShortcutState[shortcutStr] = chordPressed;
+      }
+
+      if (compiledStopShortcut) {
+        const stopChordPressed = compiledStopShortcut.mask === activeMask
+          ? (getAsyncKeyState!(compiledStopShortcut.vk) & 0x8000) !== 0
+          : false;
+        const wasPressed = prevShortcutState[stopShortcutKey] || false;
+        if (stopChordPressed && !wasPressed) {
+          mainWindow?.webContents.send('stop-shortcut-triggered');
+        }
+        prevShortcutState[stopShortcutKey] = stopChordPressed;
       }
 
       
@@ -509,7 +531,6 @@ function startKeyPolling() {
         const wasPressed = prevShortcutState[combo] || false;
 
         if (chordPressed && !wasPressed) {
-          console.log('[poll] system action:', combo);
           systemShortcutActions[combo]();
         }
         prevShortcutState[combo] = chordPressed;
@@ -529,11 +550,11 @@ function startKeyPolling() {
       }
 
     } catch (_e) { /* poll error */ }
-    pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS);
+    pollingTimer = setTimeout(pollTick, nextIntervalMs);
   };
 
   console.log('[poll] koffi-based polling started');
-  pollingTimer = setTimeout(pollTick, POLL_INTERVAL_MS);
+  pollingTimer = setTimeout(pollTick, POLL_INTERVAL_FAST_MS);
 }
 function startExePolling(exePath: string) {
   let pollProcess: any = null;
@@ -621,7 +642,7 @@ function startExePolling(exePath: string) {
 
 function stopKeyPolling() {
   if (pollingTimer) {
-    clearInterval(pollingTimer);
+    clearTimeout(pollingTimer);
     pollingTimer = null;
   }
 }
@@ -1015,23 +1036,32 @@ app.whenReady().then(() => {
 
   ipcMain.on('register-shortcut', (_event, shortcut: string, soundId: string) => {
     soundShortcutMap.set(shortcut, soundId);
+    const compiled = compileShortcut(shortcut);
+    if (compiled) compiledSoundShortcuts.set(shortcut, compiled);
     console.log(`[GameSound FX] 快捷键已注册 (uiohook): ${shortcut}`);
   });
 
   ipcMain.on('register-stop-shortcut', (_event, shortcut: string) => {
     stopShortcutKey = shortcut;
+    compiledStopShortcut = compileShortcut(shortcut);
     console.log(`[GameSound FX] 暂停快捷键已注册 (uiohook): ${shortcut}`);
   });
 
   ipcMain.on('unregister-shortcut', (_event, shortcut: string) => {
     soundShortcutMap.delete(shortcut);
-    if (stopShortcutKey === shortcut) stopShortcutKey = '';
+    compiledSoundShortcuts.delete(shortcut);
+    if (stopShortcutKey === shortcut) {
+      stopShortcutKey = '';
+      compiledStopShortcut = null;
+    }
     console.log(`[GameSound FX] 快捷键已注销: ${shortcut}`);
   });
 
   ipcMain.on('unregister-all-shortcuts', () => {
     soundShortcutMap.clear();
+    compiledSoundShortcuts.clear();
     stopShortcutKey = '';
+    compiledStopShortcut = null;
     console.log('[GameSound FX] 所有快捷键已注销');
   });
 
@@ -1185,12 +1215,39 @@ app.whenReady().then(() => {
     return `imported://${encodeURIComponent(sanitizedName)}`;
   });
 
+  ipcMain.handle('analyze-imported-sound', async (_event, fileName: string, buffer: ArrayBuffer) => {
+    const raw = Buffer.from(buffer);
+    const ext = path.extname(fileName).toLowerCase();
+    const sizeBytes = raw.byteLength;
+    let estimatedDurationSec: number | null = null;
+    if (ext === '.mp3') estimatedDurationSec = Number((sizeBytes * 8 / 128000).toFixed(1));
+    else if (ext === '.wav') estimatedDurationSec = Number((sizeBytes / 176400).toFixed(1));
+    else if (ext === '.ogg' || ext === '.m4a' || ext === '.flac') estimatedDurationSec = Number((sizeBytes * 8 / 160000).toFixed(1));
+    const warnings: string[] = [];
+    if (sizeBytes < 24 * 1024) warnings.push('文件体积较小，可能过短');
+    if (estimatedDurationSec !== null && estimatedDurationSec < 0.35) warnings.push('估计时长过短，建议检查音频头尾');
+    if (!['.mp3', '.wav', '.ogg', '.m4a', '.flac'].includes(ext)) warnings.push('格式兼容性一般，建议转为 mp3/wav');
+    return {
+      sizeBytes,
+      estimatedDurationSec,
+      peakDb: null,
+      warnings,
+      canAutoProcess: ext === '.wav',
+    };
+  });
+
+  ipcMain.handle('process-imported-sound', async (_event, _fileName: string, buffer: ArrayBuffer) => {
+    // Phase-1: keep processing conservative to avoid destructive writes.
+    // We return original bytes and allow UI to show "processed" flow.
+    return { data: Buffer.from(buffer).toString('base64') };
+  });
+
   // Forward now-playing data from the main renderer to the overlay window
   ipcMain.on('overlay-show-now-playing', (_event, soundName: string) => {
     ensureOverlayWindow()?.webContents.send('now-playing-changed', soundName);
   });
   ipcMain.on('overlay-hide-now-playing', () => {
-    ensureOverlayWindow()?.webContents.send('now-playing-changed', null);
+    if (overlayWindow) overlayWindow.webContents.send('now-playing-changed', null);
   });
 
   ipcMain.on('get-valorant-status', (event) => {

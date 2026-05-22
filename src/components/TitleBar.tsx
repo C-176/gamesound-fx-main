@@ -20,16 +20,16 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
   };
 
   return (
-    <div className="[-webkit-app-region:drag] shrink-0 bg-bg-secondary border-b border-border-default">
+    <div className="[-webkit-app-region:drag] shrink-0 bg-bg-secondary/95 border-b border-border-default">
       <div className="titlebar-accent-line" />
       <div className="px-3 py-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <RetroTV size={18} color={themeColor.cyan} />
           <div className="flex flex-col min-w-0 leading-tight">
-            <span className="text-base font-semibold text-accent tracking-wide truncate">{copy.app.title}</span>
+            <span className="text-[15px] font-semibold text-accent tracking-[0.3px] truncate">{copy.app.title}</span>
             <span className="meta-label tracking-widest">{copy.app.tagline}</span>
           </div>
-          <span className="w-1.5 h-1.5 shrink-0 bg-accent-green animate-[blink_1s_steps(1)_infinite]" title={copy.app.statusLive} />
+          <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent-green animate-[blink_1s_steps(1)_infinite]" title={copy.app.statusLive} />
         </div>
 
         <div className="[-webkit-app-region:no-drag] flex items-center gap-1">

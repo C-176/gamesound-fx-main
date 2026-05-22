@@ -19,6 +19,11 @@ interface SoundGridProps {
   onRemoveSoundFromGroup: (soundId: string, groupId: string) => void;
   getGroupById: (groupId: string) => Group | undefined;
   emptyHint?: string;
+  favorites: string[];
+  pinnedSounds: string[];
+  onToggleFavorite: (soundId: string) => void;
+  onTogglePin: (soundId: string) => void;
+  safeLockEnabled?: boolean;
 }
 
 interface SoundCardProps {
@@ -42,13 +47,18 @@ interface SoundCardProps {
   groups: Group[];
   soundGroupMap: Record<string, string>;
   getGroupById: (groupId: string) => Group | undefined;
+  isFavorite: boolean;
+  isPinned: boolean;
+  onToggleFavorite: (soundId: string) => void;
+  onTogglePin: (soundId: string) => void;
+  safeLockEnabled?: boolean;
 }
 
 const SoundCard = memo(function SoundCard({
   sound, isPlaying, shortcut, isMenuOpen, isRecThis, recordingKeys, groupColor, menuPos,
   onToggleSound, onRemoveShortcut, onRecordStart,
   onMenuClick, onAddToGroup, onRemoveFromGroup, onDeleteSound, onDeleteRequest, onMenuClose,
-  groups, soundGroupMap, getGroupById,
+  groups, soundGroupMap, getGroupById, isFavorite, isPinned, onToggleFavorite, onTogglePin, safeLockEnabled,
 }: SoundCardProps) {
   return (
     <div className="relative">
@@ -57,7 +67,7 @@ const SoundCard = memo(function SoundCard({
         className={`w-full min-h-[44px] pl-3 pr-2 py-2 text-sm text-left cursor-pointer border flex items-center gap-1.5 rounded-xl transition-colors
           ${isPlaying
             ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[glowPulse_1.8s_ease-in-out_infinite]'
-            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent hover:text-accent'
+            : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent hover:text-accent hover:bg-bg-soft/35'
           }`}
           style={isPlaying ? { willChange: 'transform' } : undefined}
       >
@@ -80,7 +90,7 @@ const SoundCard = memo(function SoundCard({
         ) : (
           <span
             onClick={(e) => { e.stopPropagation(); onRecordStart(sound.id); }}
-            className="shrink-0 text-xs px-1.5 py-0.5 border border-border-default text-text-secondary rounded-md cursor-pointer hover:border-accent hover:text-accent"
+            className="shrink-0 text-xs px-1.5 py-0.5 border border-border-default text-text-secondary rounded-md cursor-pointer hover:border-accent hover:text-accent hover:bg-bg-soft/35"
             title={copy.sound.rec}
           >
             {copy.sound.rec}
@@ -107,7 +117,7 @@ const SoundCard = memo(function SoundCard({
         </span>
       </button>
       {isMenuOpen && createPortal(
-        <div className="context-menu bg-bg-secondary border border-accent rounded-xl p-1.5 min-w-[180px] shadow-retro" style={{ position: 'fixed', top: menuPos.top + 'px', left: menuPos.left + 'px', zIndex: 9999 }}>
+        <div className="context-menu surface-card border-accent p-1.5 min-w-[180px]" style={{ position: 'fixed', top: menuPos.top + 'px', left: menuPos.left + 'px', zIndex: 9999 }}>
           {/* Sound name header */}
           <div className="px-2.5 py-1.5 text-sm font-medium text-accent truncate border-b border-border-default mb-1" title={sound.name}>
             {sound.name}
@@ -116,6 +126,19 @@ const SoundCard = memo(function SoundCard({
           <div className="mb-1">
             {groups.length > 0 && (
               <>
+                <button
+                  onClick={() => { onToggleFavorite(sound.id); onMenuClose(); }}
+                  className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-text-primary text-sm rounded-lg text-left cursor-pointer hover:border-border-default transition-none"
+                >
+                  {isFavorite ? '取消收藏' : '加入收藏'}
+                </button>
+                <button
+                  onClick={() => { onTogglePin(sound.id); onMenuClose(); }}
+                  className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-text-primary text-sm rounded-lg text-left cursor-pointer hover:border-border-default transition-none"
+                >
+                  {isPinned ? '取消置顶' : '置顶音效'}
+                </button>
+                <div className="h-px bg-border-default my-1" />
                 {groups.map(g => {
                   const isCurrentGroup = soundGroupMap[sound.id] === g.id;
                   return (
@@ -139,8 +162,10 @@ const SoundCard = memo(function SoundCard({
                 <div className="h-px bg-border-default my-1" />
                 {soundGroupMap[sound.id] && (
                   <button
-                    onClick={() => { onRemoveFromGroup(sound.id, soundGroupMap[sound.id]); onMenuClose(); }}
-                  className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-accent-red text-sm rounded-lg text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/10 transition-none"
+                    onClick={() => { if (!safeLockEnabled) { onRemoveFromGroup(sound.id, soundGroupMap[sound.id]); onMenuClose(); } }}
+                    className={`w-full px-2.5 py-1.5 border border-transparent text-sm rounded-lg text-left transition-none ${
+                      safeLockEnabled ? 'bg-transparent text-text-secondary cursor-not-allowed' : 'bg-transparent text-accent-red cursor-pointer hover:border-accent-red hover:bg-accent-red/10'
+                    }`}
                   >
                     <span className="text-sm mr-1">✕</span> {copy.sound.removeGroup}
                   </button>
@@ -148,10 +173,12 @@ const SoundCard = memo(function SoundCard({
               </>
             )}
             <button
-              onClick={() => { onDeleteRequest?.(sound.id); }}
-              className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-accent-red text-sm rounded-lg text-left cursor-pointer hover:border-accent-red hover:bg-accent-red/10 transition-none"
+              onClick={() => { if (!safeLockEnabled) onDeleteRequest?.(sound.id); }}
+              className={`w-full px-2.5 py-1.5 border border-transparent text-sm rounded-lg text-left transition-none ${
+                safeLockEnabled ? 'bg-transparent text-text-secondary cursor-not-allowed' : 'bg-transparent text-accent-red cursor-pointer hover:border-accent-red hover:bg-accent-red/10'
+              }`}
             >
-              <span className="text-sm mr-1">✕</span> {copy.sound.deleteSound}
+              <span className="text-sm mr-1">✕</span> {safeLockEnabled ? '已锁定删除' : copy.sound.deleteSound}
             </button>
           </div>
         </div>,
@@ -161,7 +188,7 @@ const SoundCard = memo(function SoundCard({
   );
 });
 
-function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint }: SoundGridProps) {
+function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint, favorites, pinnedSounds, onToggleFavorite, onTogglePin, safeLockEnabled }: SoundGridProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [isRecording, setIsRecording] = useState(false);
@@ -268,6 +295,11 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
                 groups={groups}
                 soundGroupMap={soundGroupMap}
                 getGroupById={getGroupById}
+                isFavorite={favorites.includes(sound.id)}
+                isPinned={pinnedSounds.includes(sound.id)}
+                onToggleFavorite={onToggleFavorite}
+                onTogglePin={onTogglePin}
+                safeLockEnabled={safeLockEnabled}
               />
             );
           })}

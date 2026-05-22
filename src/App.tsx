@@ -23,6 +23,34 @@ const PREFIX_KEY_MAP: Record<string, number> = {
 };
 const PREFIX_KEYS = Object.keys(PREFIX_KEY_MAP);
 
+interface MacroPreset {
+  id: string;
+  name: string;
+  soundIds: string[];
+  mode: 'random' | 'sequence' | 'burst';
+  intervalMs: number;
+  repeatCount: number;
+}
+
+interface ShortcutHealthIssue {
+  id: string;
+  level: 'warning' | 'info';
+  type: 'single-key-risk' | 'stop-key-risk';
+  shortcut: string;
+  message: string;
+  suggestion?: string;
+}
+
+interface ImportQualityReport {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  estimatedDurationSec: number | null;
+  peakDb: number | null;
+  warnings: string[];
+  canAutoProcess: boolean;
+}
+
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [playingSound, setPlayingSound] = useState<string | null>(null);
@@ -108,17 +136,71 @@ function App() {
     return localStorage.getItem('pickerPrefixKey') || '`';
   });
   const [valorantConnected, setValorantConnected] = useState(false);
-  const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string; hint?: string } | null>(null);
+  const [safeLockEnabled, setSafeLockEnabled] = useState(() => localStorage.getItem('safeLockEnabled') === 'true');
+  const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem('favorites_v2') || '[]'));
+  const [pinnedSounds, setPinnedSounds] = useState<string[]>(() => JSON.parse(localStorage.getItem('pinnedSounds') || '[]'));
+  const [recentPlayed, setRecentPlayed] = useState<string[]>(() => JSON.parse(localStorage.getItem('recentPlayed') || '[]'));
+  const [sortMode, setSortMode] = useState<'default' | 'favorites' | 'recent'>(
+    () => (localStorage.getItem('sortMode') as 'default' | 'favorites' | 'recent') || 'default'
+  );
+  const [macroPresets, setMacroPresets] = useState<MacroPreset[]>(() => JSON.parse(localStorage.getItem('macroPresets') || '[]'));
+  const [importQualityReports, setImportQualityReports] = useState<Record<string, ImportQualityReport>>({});
+  const macroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeMacroId, setActiveMacroId] = useState<string | null>(null);
 
-  const showUxNotice = useCallback((type: 'error' | 'success', text: string) => {
-    setUxNotice({ type, text });
+  const showUxNotice = useCallback((type: 'error' | 'success', text: string, hint?: string) => {
+    setUxNotice({ type, text, hint });
   }, []);
 
   useEffect(() => {
     if (!uxNotice) return;
-    const timer = setTimeout(() => setUxNotice(null), 2200);
+    const timer = setTimeout(() => setUxNotice(null), 2500);
     return () => clearTimeout(timer);
   }, [uxNotice]);
+
+  useEffect(() => {
+    localStorage.setItem('safeLockEnabled', String(safeLockEnabled));
+  }, [safeLockEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('favorites_v2', JSON.stringify(favorites));
+  }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('pinnedSounds', JSON.stringify(pinnedSounds));
+  }, [pinnedSounds]);
+
+  useEffect(() => {
+    localStorage.setItem('recentPlayed', JSON.stringify(recentPlayed.slice(0, 30)));
+  }, [recentPlayed]);
+
+  useEffect(() => {
+    localStorage.setItem('sortMode', sortMode);
+  }, [sortMode]);
+
+  useEffect(() => {
+    localStorage.setItem('macroPresets', JSON.stringify(macroPresets));
+  }, [macroPresets]);
+
+  const normalizeKeyword = useCallback((value: string) => value.toLowerCase().replace(/\s+/g, ''), []);
+
+  const isSubsequence = useCallback((needle: string, haystack: string) => {
+    if (!needle) return true;
+    let i = 0;
+    let j = 0;
+    while (i < needle.length && j < haystack.length) {
+      if (needle[i] === haystack[j]) i++;
+      j++;
+    }
+    return i === needle.length;
+  }, []);
+
+  const guardMutation = useCallback((actionLabel: string) => {
+    if (!safeLockEnabled) return true;
+    showUxNotice('error', `当前处于防误触锁定：已阻止${actionLabel}`, '可在设置中临时关闭锁定后再执行该操作');
+    return false;
+  }, [safeLockEnabled, showUxNotice]);
 
   useEffect(() => {
     const savedShortcuts = localStorage.getItem('shortcuts');
@@ -528,12 +610,38 @@ function App() {
 
   const allSounds = [...sounds, ...importedSounds];
 
-  const filteredSounds = allSounds.filter(sound => {
+  const normalizedQuery = normalizeKeyword(searchQuery);
+  const filteredSoundsBase = allSounds.filter(sound => {
     if (activeGroupFilter) {
       if (soundGroupMap[sound.id] !== activeGroupFilter) return false;
     }
-    const matchesSearch = sound.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!normalizedQuery) return true;
+    const normalizedName = normalizeKeyword(sound.name);
+    const matchesSearch =
+      normalizedName.includes(normalizedQuery) ||
+      isSubsequence(normalizedQuery, normalizedName);
     return matchesSearch;
+  });
+
+  const filteredSounds = [...filteredSoundsBase].sort((a, b) => {
+    const pinA = pinnedSounds.includes(a.id) ? 1 : 0;
+    const pinB = pinnedSounds.includes(b.id) ? 1 : 0;
+    if (pinA !== pinB) return pinB - pinA;
+
+    if (sortMode === 'favorites') {
+      const favA = favorites.includes(a.id) ? 1 : 0;
+      const favB = favorites.includes(b.id) ? 1 : 0;
+      if (favA !== favB) return favB - favA;
+    }
+
+    if (sortMode === 'recent') {
+      const idxA = recentPlayed.indexOf(a.id);
+      const idxB = recentPlayed.indexOf(b.id);
+      const scoreA = idxA === -1 ? Number.MAX_SAFE_INTEGER : idxA;
+      const scoreB = idxB === -1 ? Number.MAX_SAFE_INTEGER : idxB;
+      if (scoreA !== scoreB) return scoreA - scoreB;
+    }
+    return a.name.localeCompare(b.name, 'zh-Hans-CN');
   });
 
   const playSound = useCallback(async (sound: Sound, loop = false) => {
@@ -546,6 +654,7 @@ function App() {
       setPlayingSound(sound.id);
       playingRef.current = sound.id;
       setLastPlayedSound(sound);
+      setRecentPlayed(prev => [sound.id, ...prev.filter(id => id !== sound.id)].slice(0, 30));
       sendTeamKey('hold');
       return;
     }
@@ -626,6 +735,7 @@ function App() {
     setPlayingSound(sound.id);
     playingRef.current = sound.id;
     setLastPlayedSound(sound);
+    setRecentPlayed(prev => [sound.id, ...prev.filter(id => id !== sound.id)].slice(0, 30));
   }, [currentVolume, selectedDevice, setBlobCacheEntry]);
 
   const stopSound = useCallback((soundId: string) => {
@@ -719,14 +829,15 @@ function App() {
 
   const addShortcut = useCallback((soundId: string, shortcut: string): boolean => {
     if (!shortcut) return false;
+    if (!guardMutation('修改快捷键')) return false;
     if (stopShortcut === shortcut) {
-      showUxNotice('error', `快捷键 ${shortcut} 已用于停止播放`);
+      showUxNotice('error', `快捷键 ${shortcut} 已用于停止播放`, '建议：先清除停止快捷键，或改用其他组合键');
       return false;
     }
     const existingOwner = shortcuts[shortcut];
     if (existingOwner && existingOwner !== soundId) {
       const ownerName = allSoundsRef.current.find(s => s.id === existingOwner)?.name || '其他音效';
-      showUxNotice('error', `快捷键 ${shortcut} 已被「${ownerName}」占用`);
+      showUxNotice('error', `快捷键 ${shortcut} 已被「${ownerName}」占用`, '建议：移除原快捷键或使用 Ctrl/Shift 组合避免冲突');
       return false;
     }
     setShortcuts(prev => {
@@ -736,36 +847,40 @@ function App() {
       next[shortcut] = soundId;
       return next;
     });
-    showUxNotice('success', `已设置快捷键：${shortcut}`);
+    showUxNotice('success', `已设置快捷键：${shortcut}`, '可在设置面板中随时修改');
     return true;
-  }, [shortcuts, stopShortcut, showUxNotice]);
+  }, [shortcuts, stopShortcut, showUxNotice, guardMutation]);
 
   const removeShortcut = useCallback((shortcut: string) => {
+    if (!guardMutation('删除快捷键')) return;
     setShortcuts(prev => {
       const newShortcuts = { ...prev };
       delete newShortcuts[shortcut];
       return newShortcuts;
     });
-  }, []);
+  }, [guardMutation]);
 
   const setStopShortcutHandler = useCallback((shortcut: string): boolean => {
     if (!shortcut) return false;
+    if (!guardMutation('修改停止快捷键')) return false;
     const occupiedBy = shortcuts[shortcut];
     if (occupiedBy) {
       const ownerName = allSoundsRef.current.find(s => s.id === occupiedBy)?.name || '某个音效';
-      showUxNotice('error', `停止快捷键与「${ownerName}」冲突：${shortcut}`);
+      showUxNotice('error', `停止快捷键与「${ownerName}」冲突：${shortcut}`, '建议：停止快捷键尽量使用不常用键位，如 Ctrl+Shift+P');
       return false;
     }
     setStopShortcut(shortcut);
-    showUxNotice('success', `已设置停止快捷键：${shortcut}`);
+    showUxNotice('success', `已设置停止快捷键：${shortcut}`, '播放中可随时按下该组合键立即停止');
     return true;
-  }, [shortcuts, showUxNotice]);
+  }, [shortcuts, showUxNotice, guardMutation]);
 
   const clearStopShortcut = useCallback(() => {
+    if (!guardMutation('清除停止快捷键')) return;
     setStopShortcut('');
-  }, []);
+  }, [guardMutation]);
 
   const clearAllData = useCallback(() => {
+    if (!guardMutation('重置全部数据')) return;
     setShortcuts({});
     setStopShortcut('');
     setImportedSounds([]);
@@ -786,6 +901,12 @@ function App() {
     localStorage.removeItem('importedSounds');
     localStorage.removeItem('volume');
     localStorage.removeItem('selectedDevice');
+    localStorage.removeItem('safeLockEnabled');
+    localStorage.removeItem('favorites_v2');
+    localStorage.removeItem('pinnedSounds');
+    localStorage.removeItem('recentPlayed');
+    localStorage.removeItem('sortMode');
+    localStorage.removeItem('macroPresets');
     localStorage.removeItem('teamMode');
     localStorage.removeItem('teamKey');
     localStorage.removeItem('compactGroupFilter');
@@ -800,9 +921,10 @@ function App() {
         localStorage.removeItem(key);
       }
     }
-  }, []);
+  }, [guardMutation]);
 
   const handleImportSounds = useCallback(async () => {
+    if (!guardMutation('导入音效')) return;
     try {
       const input = document.createElement('input');
       input.type = 'file';
@@ -824,9 +946,34 @@ function App() {
 
           if (electron?.ipcRenderer?.invoke) {
             const buffer = await file.arrayBuffer();
+            const quality = await electron.ipcRenderer.invoke('analyze-imported-sound', file.name, buffer);
             storedPath = await electron.ipcRenderer.invoke('save-imported-sound', file.name, buffer);
+            setImportQualityReports(prev => ({
+              ...prev,
+              [id]: {
+                id,
+                fileName: file.name,
+                sizeBytes: quality?.sizeBytes ?? file.size,
+                estimatedDurationSec: quality?.estimatedDurationSec ?? null,
+                peakDb: quality?.peakDb ?? null,
+                warnings: quality?.warnings ?? [],
+                canAutoProcess: !!quality?.canAutoProcess,
+              },
+            }));
           } else {
             storedPath = URL.createObjectURL(file);
+            setImportQualityReports(prev => ({
+              ...prev,
+              [id]: {
+                id,
+                fileName: file.name,
+                sizeBytes: file.size,
+                estimatedDurationSec: null,
+                peakDb: null,
+                warnings: file.size < 24 * 1024 ? ['文件体积较小，可能过短或静音段较多'] : [],
+                canAutoProcess: false,
+              },
+            }));
           }
 
           localStorage.setItem(`sound_${id}`, storedPath);
@@ -865,9 +1012,10 @@ function App() {
       console.error('导入失败:', error);
       alert('导入失败，请重试');
     }
-  }, [activeGroupFilter]);
+  }, [activeGroupFilter, guardMutation]);
 
   const handleDeleteSound = useCallback((soundId: string) => {
+    if (!guardMutation('删除音效')) return;
     const howl = soundRefs.current[soundId];
     if (howl) {
       howl.unload();
@@ -894,6 +1042,11 @@ function App() {
       return filtered;
     });
     localStorage.removeItem(`sound_${soundId}`);
+    setImportQualityReports(prev => {
+      const next = { ...prev };
+      delete next[soundId];
+      return next;
+    });
 
     setGroups(prev =>
       prev.map(group => ({
@@ -911,9 +1064,10 @@ function App() {
     if (existingShortcut) {
       removeShortcut(existingShortcut[0]);
     }
-  }, [shortcuts, removeShortcut, removeBlobCacheEntry]);
+  }, [shortcuts, removeShortcut, removeBlobCacheEntry, guardMutation]);
 
   const handleImportFromPath = useCallback((filePath: string, name: string, groupId?: string) => {
+    if (!guardMutation('导入音效')) return;
     const fileUrl = filePath.startsWith('imported://') || filePath.startsWith('sound://')
       ? filePath
       : filePath.startsWith('file://')
@@ -960,9 +1114,10 @@ function App() {
 
     setHasImported(true);
 
-  }, []);
+  }, [guardMutation]);
 
   const addGroup = useCallback((name: string, color: string) => {
+    if (!guardMutation('创建分组')) return;
     const newGroup: Group = {
       id: `group_${Date.now()}`,
       name,
@@ -970,9 +1125,10 @@ function App() {
       soundIds: []
     };
     setGroups(prev => [...prev, newGroup]);
-  }, []);
+  }, [guardMutation]);
 
   const deleteGroup = useCallback((groupId: string) => {
+    if (!guardMutation('删除分组')) return;
     setGroups(prev => prev.filter(g => g.id !== groupId));
     setSoundGroupMap(prev => {
       const next: Record<string, string> = {};
@@ -989,17 +1145,19 @@ function App() {
     if (selectedGroupId === groupId) {
       setSelectedGroupId(null);
     }
-  }, [selectedGroupId]);
+  }, [selectedGroupId, guardMutation]);
 
   const updateGroupName = useCallback((groupId: string, newName: string) => {
+    if (!guardMutation('重命名分组')) return;
     setGroups(prev => 
       prev.map(group => 
         group.id === groupId ? { ...group, name: newName } : group
       )
     );
-  }, []);
+  }, [guardMutation]);
 
   const addSoundToGroup = useCallback((soundId: string, groupId: string) => {
+    if (!guardMutation('调整音效分组')) return;
     setGroups(prev =>
       prev.map(group =>
         group.id === groupId && !group.soundIds.includes(soundId)
@@ -1015,9 +1173,10 @@ function App() {
         sound.id === soundId ? { ...sound, groupId } : sound
       )
     );
-  }, []);
+  }, [guardMutation]);
 
   const removeSoundFromGroup = useCallback((soundId: string, groupId: string) => {
+    if (!guardMutation('调整音效分组')) return;
     setGroups(prev =>
       prev.map(group =>
         group.id === groupId
@@ -1039,7 +1198,7 @@ function App() {
           : sound
       )
     );
-  }, []);
+  }, [guardMutation]);
 
   const getGroupById = useCallback((groupId: string) => {
     return groups.find(g => g.id === groupId);
@@ -1056,6 +1215,127 @@ function App() {
     }
   }, [isMuted, currentVolume]);
 
+  const toggleFavorite = useCallback((soundId: string) => {
+    if (!guardMutation('更新收藏')) return;
+    setFavorites(prev => prev.includes(soundId) ? prev.filter(id => id !== soundId) : [...prev, soundId]);
+  }, [guardMutation]);
+
+  const togglePinSound = useCallback((soundId: string) => {
+    if (!guardMutation('更新置顶')) return;
+    setPinnedSounds(prev => prev.includes(soundId) ? prev.filter(id => id !== soundId) : [...prev, soundId]);
+  }, [guardMutation]);
+
+  const stopMacroPlayback = useCallback(() => {
+    if (macroTimerRef.current) {
+      clearTimeout(macroTimerRef.current);
+      macroTimerRef.current = null;
+    }
+    setActiveMacroId(null);
+  }, []);
+
+  const executeMacro = useCallback((macroId: string) => {
+    const macro = macroPresets.find(m => m.id === macroId);
+    if (!macro || macro.soundIds.length === 0) return;
+    stopMacroPlayback();
+    setActiveMacroId(macro.id);
+    let sequenceIndex = 0;
+    let burstCount = 0;
+    const step = () => {
+      const macroLatest = macroPresets.find(m => m.id === macroId);
+      if (!macroLatest || macroLatest.soundIds.length === 0) {
+        stopMacroPlayback();
+        return;
+      }
+      let sid = macroLatest.soundIds[0];
+      if (macroLatest.mode === 'random') {
+        sid = macroLatest.soundIds[Math.floor(Math.random() * macroLatest.soundIds.length)];
+      } else if (macroLatest.mode === 'sequence') {
+        sid = macroLatest.soundIds[sequenceIndex % macroLatest.soundIds.length];
+        sequenceIndex += 1;
+      } else {
+        sid = macroLatest.soundIds[burstCount % macroLatest.soundIds.length];
+        burstCount += 1;
+        if (burstCount >= Math.max(1, macroLatest.repeatCount)) {
+          stopMacroPlayback();
+        }
+      }
+      const target = allSoundsRef.current.find(s => s.id === sid);
+      if (target) {
+        stopAllFnRef.current();
+        playFnRef.current(target);
+      }
+      if (macroLatest.mode !== 'burst' || burstCount < Math.max(1, macroLatest.repeatCount)) {
+        macroTimerRef.current = setTimeout(step, Math.max(60, macroLatest.intervalMs));
+      }
+    };
+    step();
+  }, [macroPresets, stopMacroPlayback]);
+
+  useEffect(() => () => stopMacroPlayback(), [stopMacroPlayback]);
+
+  const upsertMacro = useCallback((macro: MacroPreset) => {
+    if (!guardMutation('更新宏播放')) return;
+    setMacroPresets(prev => {
+      const idx = prev.findIndex(m => m.id === macro.id);
+      if (idx === -1) return [...prev, macro];
+      const next = [...prev];
+      next[idx] = macro;
+      return next;
+    });
+  }, [guardMutation]);
+
+  const removeMacro = useCallback((macroId: string) => {
+    if (!guardMutation('删除宏播放')) return;
+    if (activeMacroId === macroId) stopMacroPlayback();
+    setMacroPresets(prev => prev.filter(m => m.id !== macroId));
+  }, [guardMutation, activeMacroId, stopMacroPlayback]);
+
+  const shortcutHealthIssues: ShortcutHealthIssue[] = (() => {
+    const issues: ShortcutHealthIssue[] = [];
+    const singleKeyRisk = Object.keys(shortcuts).filter(k => !k.includes('+'));
+    singleKeyRisk.forEach((key) => {
+      issues.push({
+        id: `single-${key}`,
+        level: 'warning',
+        type: 'single-key-risk',
+        shortcut: key,
+        message: `单键快捷键「${key}」误触风险较高`,
+        suggestion: `Ctrl+Shift+${key}`,
+      });
+    });
+    if (stopShortcut && !stopShortcut.includes('+')) {
+      issues.push({
+        id: `stop-${stopShortcut}`,
+        level: 'warning',
+        type: 'stop-key-risk',
+        shortcut: stopShortcut,
+        message: `停止快捷键「${stopShortcut}」建议改为组合键`,
+        suggestion: `Ctrl+Shift+${stopShortcut}`,
+      });
+    }
+    return issues;
+  })();
+
+  const autoFixShortcutHealth = useCallback(() => {
+    if (!guardMutation('自动修复快捷键')) return;
+    const next = { ...shortcuts };
+    Object.entries(shortcuts).forEach(([shortcut, sid]) => {
+      if (!shortcut.includes('+')) {
+        const suggestion = `Ctrl+Shift+${shortcut.toUpperCase()}`;
+        if (!next[suggestion] && suggestion !== stopShortcut) {
+          delete next[shortcut];
+          next[suggestion] = sid;
+        }
+      }
+    });
+    setShortcuts(next);
+    if (stopShortcut && !stopShortcut.includes('+')) {
+      const nextStop = `Ctrl+Shift+${stopShortcut.toUpperCase()}`;
+      if (!next[nextStop]) setStopShortcut(nextStop);
+    }
+    showUxNotice('success', '已应用快捷键健康修复', '已将高风险单键尽量替换为组合键');
+  }, [guardMutation, shortcuts, stopShortcut, showUxNotice]);
+
   return (
     <div className="app-shell relative w-full h-full border border-accent/60 flex flex-col overflow-hidden">
       <TitleBar
@@ -1067,12 +1347,13 @@ function App() {
         onTeamToggle={() => setTeamMode(prev => !prev)}
       />
       {uxNotice && (
-        <div className={`mx-3 mt-2 px-3 py-2 border rounded-lg text-sm ${
+        <div className={`feedback-toast mx-3 mt-2 px-3 py-2 text-sm ${
           uxNotice.type === 'error'
             ? 'border-accent-red bg-accent-red/10 text-accent-red'
             : 'border-accent-green bg-accent-green/10 text-accent-green'
         }`}>
-          {uxNotice.text}
+          <div className="font-medium">{uxNotice.text}</div>
+          {uxNotice.hint && <div className="mt-1 text-[11px] text-text-secondary">{uxNotice.hint}</div>}
         </div>
       )}
 
@@ -1132,6 +1413,16 @@ function App() {
                 <Globe size={12} color={themeColor.gold} />
                 {copy.toolbar.sniffer}
               </button>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as 'default' | 'favorites' | 'recent')}
+                className="shrink-0 px-2 py-2 border border-border-default bg-bg-tertiary text-text-primary text-sm rounded-lg"
+                title="排序方式"
+              >
+                <option value="default">默认排序</option>
+                <option value="favorites">收藏优先</option>
+                <option value="recent">最近优先</option>
+              </select>
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-2 min-h-[14px]">
               <span className="meta-label">
@@ -1158,6 +1449,11 @@ function App() {
             onAddSoundToGroup={addSoundToGroup}
             onRemoveSoundFromGroup={removeSoundFromGroup}
             getGroupById={getGroupById}
+            favorites={favorites}
+            pinnedSounds={pinnedSounds}
+            onToggleFavorite={toggleFavorite}
+            onTogglePin={togglePinSound}
+            safeLockEnabled={safeLockEnabled}
           />
         </div>
 
@@ -1209,6 +1505,16 @@ function App() {
           onValorantEnabledChange={setValorantEnabled}
           pickerPrefixKey={pickerPrefixKey}
           onPickerPrefixKeyChange={setPickerPrefixKey}
+          safeLockEnabled={safeLockEnabled}
+          onSafeLockChange={setSafeLockEnabled}
+          macroPresets={macroPresets}
+          onUpsertMacro={upsertMacro}
+          onRemoveMacro={removeMacro}
+          onRunMacro={executeMacro}
+          activeMacroId={activeMacroId}
+          shortcutHealthIssues={shortcutHealthIssues}
+          onAutoFixShortcutHealth={autoFixShortcutHealth}
+          importQualityReports={Object.values(importQualityReports)}
         />
       )}
 

@@ -14,10 +14,13 @@
   --bg-secondary: #0d1320;
   --bg-tertiary: #121b2b;
   --bg-elevated: #172338;
+  --bg-soft: #1b2940;
   --border-default: #2c3f61;
   --border-bright: #3b527a;
+  --border-strong: #4f6a95;
   --text-primary: #e3edff;
   --text-secondary: #9eb3d8;
+  --text-muted: #7f95bb;
   --accent: #8b5cf6;
   --accent-dim: rgba(139, 92, 246, 0.16);
   --accent-cyan: #22d3ee;
@@ -28,6 +31,13 @@
   --accent-purple: #6d4aff;
   --shadow-retro: 0 12px 28px rgba(0, 0, 0, 0.35);
   --shadow-retro-sm: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --shadow-panel: 0 10px 26px rgba(0, 0, 0, 0.24);
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.22);
+  --motion-fast: 120ms;
+  --motion-base: 170ms;
   --font-title: 14px;
   --font-body: 12px;
   --font-meta: 10px;
@@ -168,7 +178,7 @@ input:focus-visible {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.04),
       inset 0 0 40px rgba(34, 211, 238, 0.06);
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
   }
 
   .toolbar-panel {
@@ -186,8 +196,8 @@ input:focus-visible {
     font-size: 13px;
     letter-spacing: 0.2px;
     outline: none;
-    border-radius: 10px;
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    border-radius: var(--radius-lg);
+    transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease;
   }
 
   .search-input::placeholder {
@@ -197,7 +207,8 @@ input:focus-visible {
 
   .search-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-dim);
+    box-shadow: var(--focus-ring);
+    background: color-mix(in srgb, var(--bg-tertiary) 88%, white 12%);
   }
 
   .btn-retro {
@@ -210,8 +221,8 @@ input:focus-visible {
     font-size: 13px;
     letter-spacing: 0.2px;
     cursor: pointer;
-    border-radius: 10px;
-    transition: border-color 120ms ease, background 120ms ease;
+    border-radius: var(--radius-lg);
+    transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, color var(--motion-fast) ease;
   }
 
   .btn-retro:hover {
@@ -276,8 +287,8 @@ input:focus-visible {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border-radius: 8px;
-    transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+    border-radius: var(--radius-md);
+    transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, color var(--motion-fast) ease;
   }
 
   .win-btn:hover {
@@ -293,7 +304,7 @@ input:focus-visible {
 
   .empty-state-panel {
     border: 1px dashed var(--border-bright);
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     background: rgba(18, 27, 43, 0.6);
   }
 
@@ -314,14 +325,14 @@ input:focus-visible {
   .panel-inset {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-default);
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     padding: 0.625rem;
   }
 
   .meta-label {
     font-size: var(--font-meta);
     letter-spacing: var(--letter-body);
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
 
   .btn-retro-icon {
@@ -338,7 +349,7 @@ input:focus-visible {
     color: #e8e3ff;
     font-size: var(--font-meta);
     letter-spacing: 0;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   .toggle-chip {
@@ -355,6 +366,21 @@ input:focus-visible {
     border-color: var(--accent);
     background: var(--accent-dim);
     color: var(--accent);
+  }
+
+  .surface-card {
+    border: 1px solid var(--border-default);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)), var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .feedback-toast {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    background: color-mix(in srgb, var(--bg-secondary) 84%, black 16%);
+    box-shadow: var(--shadow-retro-sm);
+    backdrop-filter: blur(4px);
   }
 }
 

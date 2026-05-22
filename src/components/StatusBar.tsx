@@ -99,7 +99,7 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
           ${isPlaying
             ? 'border-accent-green bg-accent-green/10 text-accent-green'
             : hasLastSound
-              ? 'border-accent bg-accent/10 text-accent hover:bg-accent/20'
+              ? 'border-accent bg-accent/10 text-accent hover:bg-accent/18'
               : 'border-border-default bg-bg-tertiary text-text-secondary cursor-not-allowed'
           }`}
       >
@@ -124,12 +124,12 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
       )}
 
       {/* Mute toggle */}
-      <button
+        <button
         onClick={onMuteToggle}
         className={`shrink-0 w-7 h-7 flex items-center justify-center border rounded-lg cursor-pointer transition-none
           ${isMuted
             ? 'border-accent-red bg-accent-red/10 text-accent-red'
-            : 'border-border-default bg-bg-tertiary text-text-secondary hover:border-accent hover:text-accent'}`}
+            : 'border-border-default bg-bg-tertiary text-text-secondary hover:border-accent hover:text-accent hover:bg-bg-soft/35'}`}
         title={isMuted ? copy.status.unmute : copy.status.mute}
       >
         {isMuted ? <PixelMuted size={12} /> : <PixelSpeaker size={12} />}
@@ -148,18 +148,18 @@ function StatusBar({ volume, onVolumeChange, isPlaying, onPause, onPlayLast, has
       <div className="relative flex-1 min-w-0" ref={deviceMenuRef}>
         <button
           onClick={() => setShowDeviceMenu(!showDeviceMenu)}
-          className="flex items-center gap-1 px-2.5 py-2 border border-border-default bg-bg-tertiary text-sm text-text-primary cursor-pointer hover:border-accent transition-none w-full rounded-lg"
+          className="flex items-center gap-1 px-2.5 py-2 border border-border-default bg-bg-tertiary text-sm text-text-primary cursor-pointer hover:border-accent hover:bg-bg-soft/40 transition-none w-full rounded-lg"
         >
           <span className="truncate">{getSelectedDeviceLabel()}</span>
           <span className="text-accent text-xs shrink-0">{showDeviceMenu ? '▲' : '▼'}</span>
         </button>
         {deviceFeedback && (
-          <div className="absolute -top-8 right-0 px-2 py-1 border border-accent-green bg-bg-secondary text-accent-green text-xs rounded-lg whitespace-nowrap z-[120]">
+          <div className="feedback-toast absolute -top-8 right-0 px-2 py-1 border-accent-green text-accent-green text-xs whitespace-nowrap z-[120]">
             {deviceFeedback}
           </div>
         )}
         {showDeviceMenu && (
-          <div className="absolute bottom-full right-0 mb-1 w-[220px] bg-bg-secondary border border-accent rounded-xl p-1 z-[100] shadow-retro-sm">
+          <div className="surface-card absolute bottom-full right-0 mb-1 w-[220px] border-accent p-1 z-[100]">
             {devices.map(device => (
               <button
                 key={device.id}

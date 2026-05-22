@@ -12,14 +12,14 @@ interface GroupFilterBarProps {
 
 function GroupFilterBar({ groups, activeGroupFilter, onSelectGroupFilter, onGroupManagerClick, getGroupById }: GroupFilterBarProps) {
   return (
-    <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border-default bg-bg-secondary/80">
+    <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border-default bg-bg-secondary/70 backdrop-blur-[2px]">
       <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0 scroll-fade-x pb-0.5">
         <button
           onClick={() => onSelectGroupFilter(null)}
           className={`shrink-0 text-sm cursor-pointer border transition-none rounded-lg whitespace-nowrap
             ${activeGroupFilter === null
-              ? 'px-2.5 py-1 border-accent text-accent bg-accent/10'
-              : 'px-2.5 py-1 border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary'
+              ? 'px-2.5 py-1 border-accent text-accent bg-accent/12'
+              : 'px-2.5 py-1 border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary hover:bg-bg-soft/35'
             }`}
         >
           {copy.common.all}
@@ -30,8 +30,8 @@ function GroupFilterBar({ groups, activeGroupFilter, onSelectGroupFilter, onGrou
             onClick={() => onSelectGroupFilter(group.id)}
             className={`shrink-0 text-sm cursor-pointer border transition-none rounded-lg flex items-center gap-1 whitespace-nowrap
               ${activeGroupFilter === group.id
-                ? 'px-2.5 py-1 border-accent text-accent bg-accent/10'
-                : 'px-2.5 py-1 border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary'
+                ? 'px-2.5 py-1 border-accent text-accent bg-accent/12'
+                : 'px-2.5 py-1 border-transparent text-text-secondary hover:border-border-bright hover:text-text-primary hover:bg-bg-soft/35'
               }`}
             style={activeGroupFilter === group.id ? { borderColor: group.color } : undefined}
           >

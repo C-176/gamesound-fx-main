@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld('electron', {
         'read-builtin-sound',
         'preview-captured-sound',
         'play-sound-by-id',
+        'analyze-imported-sound',
+        'process-imported-sound',
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
