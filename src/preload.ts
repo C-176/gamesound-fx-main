@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('electron', {
         'valorant-hide-picker',
         'set-picker-prefix-key',
         'set-recording-mode',
+        'close-spotlight',
+        'toggle-spotlight-search',
+        'resize-spotlight',
+        'play-sound-from-spotlight',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.send(channel, ...args);
@@ -57,6 +61,11 @@ contextBridge.exposeInMainWorld('electron', {
         'play-sound-by-id',
         'analyze-imported-sound',
         'process-imported-sound',
+        'read-sound-full',
+        'trim-sound',
+        'export-config',
+        'import-config-preview',
+        'import-config-apply',
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -81,13 +90,27 @@ contextBridge.exposeInMainWorld('electron', {
         'valorant-picker-show',
         'valorant-picker-update',
         'valorant-picker-hide',
+        'toggle-spotlight-search',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, listener);
       }
     },
     removeListener: (channel: string, listener: (...args: unknown[]) => void) => {
-      ipcRenderer.removeListener(channel, listener);
+      const validChannels = [
+        'shortcut-triggered',
+        'overlay-show-now-playing',
+        'overlay-hide-now-playing',
+        'valorant-show-picker',
+        'valorant-hide-picker',
+        'set-picker-prefix-key',
+        'set-recording-mode',
+        'valorant-start-monitor',
+        'valorant-stop-monitor',
+      ];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.removeListener(channel, listener);
+      }
     },
   },
 });

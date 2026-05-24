@@ -6,8 +6,12 @@ import SoundGrid from './components/SoundGrid';
 import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import OnlineSoundBrowser from './components/OnlineSoundBrowser';
+import TrimmerModal from './components/TrimmerModal';
+import ExportDialog from './components/ExportDialog';
+import ImportDialog from './components/ImportDialog';
 import GroupManager from './components/GroupManager';
 import GroupFilterBar from './components/GroupFilterBar';
+import SpotlightSearch from './components/SpotlightSearch';
 import ValorantPanel from './components/ValorantPanel';
 import { Cassette, Globe } from './components/ModernIcons';
 import { copy, themeColor } from './ui/copy';
@@ -115,6 +119,9 @@ function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [soundGroupMap, setSoundGroupMap] = useState<Record<string, string>>({});
   const [showGroupManager, setShowGroupManager] = useState(false);
+  const [trimFileName, setTrimFileName] = useState<string | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(() => {
     const saved = localStorage.getItem('lastGroupFilter');
@@ -1336,6 +1343,21 @@ function App() {
     showUxNotice('success', '已应用快捷键健康修复', '已将高风险单键尽量替换为组合键');
   }, [guardMutation, shortcuts, stopShortcut, showUxNotice]);
 
+  // Spotlight mode: render only the search overlay
+  if (new URLSearchParams(window.location.search).get('spotlight') === '1') {
+    return (
+      <SpotlightSearch
+        open={true}
+        onClose={() => { (window as any).electron?.ipcRenderer?.send('close-spotlight'); }}
+        sounds={allSounds}
+        onPlaySound={(sound) => {
+          (window as any).electron?.ipcRenderer?.send('play-sound-from-spotlight', sound.id);
+        }}
+        shortcuts={shortcuts}
+      />
+    );
+  }
+
   return (
     <div className="app-shell relative w-full h-full border border-accent/60 flex flex-col overflow-hidden">
       <TitleBar
@@ -1454,6 +1476,7 @@ function App() {
             onToggleFavorite={toggleFavorite}
             onTogglePin={togglePinSound}
             safeLockEnabled={safeLockEnabled}
+            onTrimRequest={(fileName: string) => setTrimFileName(fileName)}
           />
         </div>
 
@@ -1505,16 +1528,50 @@ function App() {
           onValorantEnabledChange={setValorantEnabled}
           pickerPrefixKey={pickerPrefixKey}
           onPickerPrefixKeyChange={setPickerPrefixKey}
-          safeLockEnabled={safeLockEnabled}
-          onSafeLockChange={setSafeLockEnabled}
-          macroPresets={macroPresets}
-          onUpsertMacro={upsertMacro}
-          onRemoveMacro={removeMacro}
-          onRunMacro={executeMacro}
-          activeMacroId={activeMacroId}
-          shortcutHealthIssues={shortcutHealthIssues}
-          onAutoFixShortcutHealth={autoFixShortcutHealth}
-          importQualityReports={Object.values(importQualityReports)}
+          onExport={() => setShowExportDialog(true)}
+          onImport={() => setShowImportDialog(true)}
+        />
+      )}
+
+      {trimFileName && (
+        <TrimmerModal
+          open={!!trimFileName}
+          fileName={trimFileName}
+          onClose={() => setTrimFileName(null)}
+          onTrimmed={(newName) => {
+            const fileUrl = `imported://${encodeURIComponent(newName)}`;
+            const trimmedName = newName.replace(/\.[^/.]+$/, '');
+            const newId = `imported_${Date.now()}`;
+            setImportedSounds(prev => {
+              const newSound: Sound = {
+                id: newId,
+                name: trimmedName,
+                filename: newName,
+                category: 'local',
+                isImported: true,
+              };
+              localStorage.setItem(`sound_${newId}`, fileUrl);
+              const allImported = [...prev, newSound];
+              localStorage.setItem('importedSounds', JSON.stringify(allImported));
+              return allImported;
+            });
+            setHasImported(true);
+            setTrimFileName(null);
+          }}
+        />
+      )}
+
+      {showExportDialog && (
+        <ExportDialog
+          open={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
+
+      {showImportDialog && (
+        <ImportDialog
+          open={showImportDialog}
+          onClose={() => setShowImportDialog(false)}
         />
       )}
 

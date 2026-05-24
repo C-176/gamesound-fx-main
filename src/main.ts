@@ -1,6 +1,10 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as child_process from 'child_process';
+import type { ChildProcess } from 'child_process';
+import { ZipArchive } from 'archiver';
+import AdmZip from 'adm-zip';
 import { UiohookKey } from 'uiohook-napi';
 import { ValorantLogDetector } from './valorant/log-detector';
 import type { ValorantEventPayload, ValorantStatus } from './valorant/types';
@@ -13,6 +17,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
+let spotlightWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let soundBrowserWindow: BrowserWindow | null = null;
 let soundBrowserFixedSize: { width: number; height: number } | null = null;
@@ -99,6 +104,16 @@ const systemShortcutActions: Record<string, () => void> = {
     }
     // Release Tab so game doesn't register it (scoreboard trigger)
     if (keybd_event_fn) keybd_event_fn(0x09, 0, 0x0002, 0);
+  },
+  'Alt+Space': () => {
+    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+      spotlightWindow.close();
+      spotlightWindow = null;
+    } else {
+      ensureSpotlightWindow();
+      spotlightWindow?.show();
+      spotlightWindow?.focus();
+    }
   },
 };
 
@@ -694,6 +709,49 @@ const ensureOverlayWindow = (): BrowserWindow | null => {
   return overlayWindow;
 };
 
+// ─── Spotlight search window ───
+const createSpotlightWindow = () => {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenW, height: screenH } = primaryDisplay.size;
+  const winW = 560;
+  spotlightWindow = new BrowserWindow({
+    x: Math.round((screenW - winW) / 2),
+    y: Math.round(screenH * 0.12),
+    width: winW,
+    height: 440,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    hasShadow: true,
+    show: false,
+    alwaysOnTop: true,
+    type: 'toolbar',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+  const url = process.env.VITE_DEV_SERVER_URL
+    ? process.env.VITE_DEV_SERVER_URL + '?spotlight=1'
+    : 'app://local/?spotlight=1';
+  spotlightWindow.loadURL(url);
+  spotlightWindow.on('blur', () => {
+    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+      spotlightWindow.close();
+      spotlightWindow = null;
+    }
+  });
+  spotlightWindow.on('closed', () => { spotlightWindow = null; });
+};
+
+const ensureSpotlightWindow = (): BrowserWindow | null => {
+  if (!spotlightWindow || spotlightWindow.isDestroyed()) createSpotlightWindow();
+  return spotlightWindow;
+};
+
 const buildTrayMenu = (): Menu => {
   return Menu.buildFromTemplate([
     {
@@ -1014,6 +1072,27 @@ app.whenReady().then(() => {
 
   ipcMain.on('close-window', () => {
     app.quit();
+  });
+
+  ipcMain.on('close-spotlight', () => {
+    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+      spotlightWindow.close();
+      spotlightWindow = null;
+    }
+  });
+
+  ipcMain.on('resize-spotlight', (_e, height: number) => {
+    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+      spotlightWindow.setSize(560, height);
+    }
+  });
+
+  ipcMain.on('play-sound-from-spotlight', (_e, soundId: string) => {
+    mainWindow?.webContents.send('shortcut-triggered', soundId);
+    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+      spotlightWindow.close();
+      spotlightWindow = null;
+    }
   });
 
   ipcMain.on('close-browser-window', () => {
@@ -1414,6 +1493,166 @@ app.whenReady().then(() => {
   });
 
   console.log('[GameSound FX] 应用已启动 - 支持全屏游戏悬浮使用');
+
+  // --- Trim sound: read full audio bytes -------------------------------------------------
+  ipcMain.handle("read-sound-full", async (_event, fileName: string) => {
+    try {
+      // Try imported sounds first
+      const importedDir = getImportedSoundsDir();
+      const importedPath = path.join(importedDir, fileName);
+      if (fs.existsSync(importedPath)) {
+        const data = fs.readFileSync(importedPath);
+        console.log(`[read-sound-full] found in imported dir: ${importedPath} (${data.length} bytes)`);
+        return { data: data.toString("base64") };
+      }
+      // Fallback: built-in sounds (packaged)
+      const prodDir = path.join(process.resourcesPath, 'sounds');
+      const prodPath = path.resolve(prodDir, fileName);
+      if (prodPath.startsWith(prodDir) && fs.existsSync(prodPath)) {
+        const data = fs.readFileSync(prodPath);
+        console.log(`[read-sound-full] found in prod dir: ${prodPath} (${data.length} bytes)`);
+        return { data: data.toString("base64") };
+      }
+      // Fallback: dev path
+      const devDir = path.join(__dirname, '..', 'public', 'sounds');
+      const devPath = path.resolve(devDir, fileName);
+      if (devPath.startsWith(devDir) && fs.existsSync(devPath)) {
+        const data = fs.readFileSync(devPath);
+        console.log(`[read-sound-full] found in dev dir: ${devPath} (${data.length} bytes)`);
+        return { data: data.toString("base64") };
+      }
+      console.log(`[read-sound-full] NOT FOUND: ${fileName} (searched imported, prod, dev)`);
+      return null;
+    } catch (err) {
+      console.error(`[read-sound-full] error reading ${fileName}:`, err);
+      return null;
+    }
+  });
+
+  // --- Trim sound: ffmpeg cut -----------------------------------------------------------
+  ipcMain.handle("trim-sound", async (_event, fileName: string, startSec: number, endSec: number) => {
+    return new Promise((resolve, reject) => {
+      const importedDir = getImportedSoundsDir();
+
+      // Find source file across all possible locations
+      const possiblePaths = [
+        path.join(importedDir, fileName),
+        path.join(process.resourcesPath, 'sounds', fileName),
+        path.join(__dirname, '..', 'public', 'sounds', fileName),
+      ];
+      let srcPath = possiblePaths.find(p => fs.existsSync(p));
+      if (!srcPath) {
+        return reject(new Error('源文件未找到'));
+      }
+
+      // If source is not in imported dir, copy it there first
+      if (!srcPath.startsWith(importedDir)) {
+        const copyDest = path.join(importedDir, fileName);
+        fs.copyFileSync(srcPath, copyDest);
+        srcPath = copyDest;
+      }
+
+      const ext = path.extname(fileName);
+      const baseName = path.basename(fileName, ext);
+      const outName = baseName + "_trimmed" + ext;
+      const outPath = path.join(importedDir, outName);
+
+      let ffmpegBin = "ffmpeg";
+      try {
+        const pkg = require("ffmpeg-static");
+        if (pkg) ffmpegBin = pkg;
+      } catch (_) { /* use system ffmpeg */ }
+
+      const args = ["-y", "-i", srcPath, "-ss", String(startSec), "-to", String(endSec), "-c", "copy", outPath];
+      const proc: ChildProcess = child_process.spawn(ffmpegBin, args);
+
+      let stderr = "";
+      proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+      proc.on("close", (code: number | null) => {
+        if (code === 0) resolve({ fileName: outName });
+        else reject(new Error(stderr || "ffmpeg exited " + code));
+      });
+
+      proc.on("error", (err: Error) => reject(err));
+    });
+  });
+
+  // --- Export config: zip sounds.json + all imported sounds ------------------------------
+  ipcMain.handle("export-config", async () => {
+    return new Promise((resolve, reject) => {
+      const soundsDir = getImportedSoundsDir();
+      const userDataPath = app.getPath("userData");
+      const settingsPath = path.join(userDataPath, "sounds.json");
+
+      const archive = new ZipArchive({ zlib: { level: 5 } });
+      const chunks: Buffer[] = [];
+      archive.on("data", (chunk: Buffer) => chunks.push(chunk));
+      archive.on("end", () => resolve({ data: Buffer.concat(chunks).toString("base64") }));
+      archive.on("error", (err: Error) => reject(err));
+
+      if (fs.existsSync(settingsPath)) {
+        archive.file(settingsPath, { name: "sounds.json" });
+      }
+
+      if (fs.existsSync(soundsDir)) {
+        const files = fs.readdirSync(soundsDir);
+        for (const f of files) {
+          const fp = path.join(soundsDir, f);
+          if (fs.statSync(fp).isFile()) {
+            archive.file(fp, { name: "sounds/" + f });
+          }
+        }
+      }
+
+      archive.finalize();
+    });
+  });
+
+  // --- Import config preview: read zip metadata ------------------------------------------
+  ipcMain.handle("import-config-preview", async (_event, dataBase64: string) => {
+    try {
+      const buf = Buffer.from(dataBase64, "base64");
+      const zip = new AdmZip(buf);
+      const entries = zip.getEntries();
+      const result: { entries: Array<{ entryName: string; size: number }> } = { entries: [] };
+      let hasSettings = false;
+      for (const entry of entries) {
+        if (entry.entryName === "sounds.json") hasSettings = true;
+        result.entries.push({ entryName: entry.entryName, size: entry.getData().length });
+      }
+      if (!hasSettings) return { error: "Invalid config: missing sounds.json" };
+      return result;
+    } catch (e: any) {
+      return { error: e?.message || "Failed to read archive" };
+    }
+  });
+
+  // --- Import config apply: extract and overwrite ----------------------------------------
+  ipcMain.handle("import-config-apply", async (_event, dataBase64: string) => {
+    try {
+      const buf = Buffer.from(dataBase64, "base64");
+      const zip = new AdmZip(buf);
+      const userDataPath = app.getPath("userData");
+      const soundsDir = getImportedSoundsDir();
+
+      const settingsEntry = zip.getEntry("sounds.json");
+      if (settingsEntry) {
+        fs.writeFileSync(path.join(userDataPath, "sounds.json"), settingsEntry.getData());
+      }
+
+      const soundEntries = zip.getEntries().filter((e: any) => e.entryName.startsWith("sounds/") && !e.isDirectory);
+      for (const entry of soundEntries) {
+        const fileName = path.basename(entry.entryName);
+        fs.writeFileSync(path.join(soundsDir, fileName), entry.getData());
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      return { error: e?.message || "Import failed" };
+    }
+  });
+
 }); }
 
 app.on('window-all-closed', () => {

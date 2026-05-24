@@ -24,6 +24,7 @@ interface SoundGridProps {
   onToggleFavorite: (soundId: string) => void;
   onTogglePin: (soundId: string) => void;
   safeLockEnabled?: boolean;
+  onTrimRequest?: (fileName: string) => void;
 }
 
 interface SoundCardProps {
@@ -52,13 +53,14 @@ interface SoundCardProps {
   onToggleFavorite: (soundId: string) => void;
   onTogglePin: (soundId: string) => void;
   safeLockEnabled?: boolean;
+  onTrimRequest?: (fileName: string) => void;
 }
 
 const SoundCard = memo(function SoundCard({
   sound, isPlaying, shortcut, isMenuOpen, isRecThis, recordingKeys, groupColor, menuPos,
   onToggleSound, onRemoveShortcut, onRecordStart,
   onMenuClick, onAddToGroup, onRemoveFromGroup, onDeleteSound, onDeleteRequest, onMenuClose,
-  groups, soundGroupMap, getGroupById, isFavorite, isPinned, onToggleFavorite, onTogglePin, safeLockEnabled,
+  groups, soundGroupMap, getGroupById, isFavorite, isPinned, onToggleFavorite, onTogglePin, safeLockEnabled, onTrimRequest,
 }: SoundCardProps) {
   return (
     <div className="relative">
@@ -172,6 +174,14 @@ const SoundCard = memo(function SoundCard({
                 )}
               </>
             )}
+            {onTrimRequest && sound.filename && (
+              <button
+                onClick={() => { onTrimRequest(sound.filename); onMenuClose(); }}
+                className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-text-primary text-sm rounded-lg text-left cursor-pointer hover:border-border-default transition-none"
+              >
+                ✂ 裁剪音效
+              </button>
+            )}
             <button
               onClick={() => { if (!safeLockEnabled) onDeleteRequest?.(sound.id); }}
               className={`w-full px-2.5 py-1.5 border border-transparent text-sm rounded-lg text-left transition-none ${
@@ -188,7 +198,7 @@ const SoundCard = memo(function SoundCard({
   );
 });
 
-function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint, favorites, pinnedSounds, onToggleFavorite, onTogglePin, safeLockEnabled }: SoundGridProps) {
+function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint, favorites, pinnedSounds, onToggleFavorite, onTogglePin, safeLockEnabled, onTrimRequest }: SoundGridProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [isRecording, setIsRecording] = useState(false);
@@ -231,7 +241,9 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
       let key = e.key;
       if (key === ' ') key = 'Space';
       else if (key === 'Escape') { cancelRecording(); e.preventDefault(); return; }
-      const validKeys = ['Enter', 'Space', 'Tab', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`), ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
+      // Uppercase letter keys so they match VK_MAP in main.ts
+      if (key.length === 1 && key >= 'a' && key <= 'z') key = key.toUpperCase();
+      const validKeys = ['Enter', 'Space', 'Tab', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`), ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
       if (key.length === 1 || validKeys.includes(key)) { if (!keys.includes(key)) keys.push(key); }
       setRecordingKey([...keys]);
       if (keys.length > 0 && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
@@ -300,6 +312,7 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
                 onToggleFavorite={onToggleFavorite}
                 onTogglePin={onTogglePin}
                 safeLockEnabled={safeLockEnabled}
+                onTrimRequest={onTrimRequest}
               />
             );
           })}

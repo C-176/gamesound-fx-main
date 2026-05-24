@@ -42,7 +42,7 @@ module.exports = {
     function({ addUtilities }) {
       addUtilities({
         '.font-pixel': {
-          fontFamily: "'VonwaonBitmap', 'PingFang SC', 'Microsoft YaHei', monospace",
+          fontFamily: "'Press Start 2P', 'PingFang SC', 'Microsoft YaHei', monospace",
           letterSpacing: '1px',
           lineHeight: '1.6',
         },

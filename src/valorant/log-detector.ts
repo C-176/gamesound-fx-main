@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
 import type { ValorantEvent, ValorantStatus, ValorantEventPayload } from './types';
 
 type EventCallback = (payload: ValorantEventPayload) => void;
@@ -72,10 +72,10 @@ export class ValorantLogDetector {
     return this.gameConnected;
   }
 
-  start() {
-    this.discoverLogFile();
+  async start() {
+    await this.discoverLogFile();
     this.tick();
-    // Polling fallback (1s) â€” catches changes fs.watch might miss
+    // Polling fallback (1s) â€?catches changes fs.watch might miss
     this.watchTimer = setInterval(() => this.tick(), 1000);
   }
 
@@ -125,12 +125,12 @@ export class ValorantLogDetector {
     if (wasConnected) this.onStatus({ connected: false });
   }
 
-  private tick() {
+  private async tick() {
     if (!this.logFilePath) {
       const now = Date.now();
       if (now - this.lastDiscoverAttempt < this.discoverBackoffMs) return;
       this.lastDiscoverAttempt = now;
-      this.discoverLogFile();
+      await this.discoverLogFile();
       if (!this.logFilePath) {
         this.discoverFailCount++;
         this.discoverBackoffMs = Math.min(60000, 5000 * Math.pow(2, Math.min(this.discoverFailCount, 4)));
@@ -172,20 +172,20 @@ export class ValorantLogDetector {
     }
   }
 
-  private queryRegistry(key: string, value: string): string | null {
-    try {
-      const out = execSync(`reg query "${key}" /v "${value}" 2>nul`, { encoding: 'utf8', timeout: 2000 });
-      const m = out.match(new RegExp(value + '\\s+REG_\\w+\\s+(.+)', 'i'));
-      return m ? m[1].trim() : null;
-    } catch {
-      return null;
-    }
+  private async queryRegistry(key: string, value: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      execFile('reg', ['query', key, '/v', value], { encoding: 'utf8', timeout: 2000 }, (err, stdout) => {
+        if (err) { resolve(null); return; }
+        const m = stdout.match(new RegExp(value + '\\s+REG_\\w+\\s+(.+)', 'i'));
+        resolve(m ? m[1].trim() : null);
+      });
+    });
   }
 
-  private discoverLogFile() {
+  private async discoverLogFile() {
     // Try registry first
-    const regPath = this.queryRegistry('HKLM\\SOFTWARE\\WOW6432Node\\Tencent\\WeGame', 'InstallPath')
-      || this.queryRegistry('HKCU\\SOFTWARE\\Tencent\\WeGame', 'InstallPath');
+    const regPath = await this.queryRegistry('HKLM\\SOFTWARE\\WOW6432Node\\Tencent\\WeGame', 'InstallPath')
+      || await this.queryRegistry('HKCU\\SOFTWARE\\Tencent\\WeGame', 'InstallPath');
     if (regPath) {
       const candidate = path.join(regPath, 'rail_apps');
       const log = this.findLogInDir(candidate);
@@ -278,7 +278,7 @@ export class ValorantLogDetector {
           continue;
         }
 
-        // Match start â€” MapLoadModel with Match Setup and Map Ready (not MainMenu)
+        // Match start â€?MapLoadModel with Match Setup and Map Ready (not MainMenu)
         if (line.includes('LogMapLoadModel') && line.includes('Match Setup: TRUE') && line.includes('Map Ready: TRUE') && !line.includes('MainMenuV2') && !this.initialScan && !this.matchStartedForCurrentGame) {
           const mapMatch = line.match(/\[Map Name:\s*(\w+)/);
           if (mapMatch) {
@@ -290,7 +290,7 @@ export class ValorantLogDetector {
           continue;
         }
 
-        // Agent select â€” player character received
+        // Agent select â€?player character received
         if (line.includes('Current character: Default__') && !this.initialScan) {
           const agentMatch = line.match(/Default__(\w+)_PC_C/);
           if (agentMatch && agentMatch[1] !== this.currentAgent) {
