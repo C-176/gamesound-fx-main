@@ -45,10 +45,14 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
           {onTeamToggle && (
             <button
               onClick={onTeamToggle}
-              className={`win-btn rounded-lg ${teamMode ? 'border-accent bg-accent-dim text-accent' : ''}`}
-              title={`${copy.settings.teamMode} · ${teamMode ? copy.common.on : copy.common.off}`}
+              className={`win-btn rounded-lg ${
+                teamMode
+                  ? 'border-accent-pink bg-accent-pink/15 text-accent-pink shadow-[0_0_8px_rgba(255,46,160,0.4)]'
+                  : ''
+              }`}
+              title={`团队按键 ${teamMode ? '· 已开启' : '· 已关闭'}`}
             >
-              <UFO size={12} color={teamMode ? themeColor.accent : 'currentColor'} />
+              <UFO size={12} color={teamMode ? themeColor.pink : 'currentColor'} />
             </button>
           )}
           <span className="w-px h-5 bg-border-bright mx-0.5" aria-hidden />

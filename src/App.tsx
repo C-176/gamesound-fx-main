@@ -13,7 +13,7 @@ import GroupManager from './components/GroupManager';
 import GroupFilterBar from './components/GroupFilterBar';
 import SpotlightSearch from './components/SpotlightSearch';
 import ValorantPanel from './components/ValorantPanel';
-import { Cassette, Globe } from './components/ModernIcons';
+import { Cassette, Globe, Search } from './components/ModernIcons';
 import { copy, themeColor } from './ui/copy';
 
 
@@ -76,7 +76,8 @@ function App() {
   const BLOB_CACHE_MAX = 32;
 
   const formatFromPath = (filePath: string): string[] | undefined => {
-    const ext = filePath.split('.').pop()?.toLowerCase();
+    const cleaned = filePath.split('?')[0];
+    const ext = cleaned.split('.').pop()?.toLowerCase();
     if (!ext) return undefined;
     if (ext === 'mp3' || ext === 'mpeg') return ['mp3'];
     return [ext];
@@ -145,11 +146,10 @@ function App() {
   const [valorantConnected, setValorantConnected] = useState(false);
   const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string; hint?: string } | null>(null);
   const [safeLockEnabled, setSafeLockEnabled] = useState(() => localStorage.getItem('safeLockEnabled') === 'true');
-  const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem('favorites_v2') || '[]'));
   const [pinnedSounds, setPinnedSounds] = useState<string[]>(() => JSON.parse(localStorage.getItem('pinnedSounds') || '[]'));
   const [recentPlayed, setRecentPlayed] = useState<string[]>(() => JSON.parse(localStorage.getItem('recentPlayed') || '[]'));
-  const [sortMode, setSortMode] = useState<'default' | 'favorites' | 'recent'>(
-    () => (localStorage.getItem('sortMode') as 'default' | 'favorites' | 'recent') || 'default'
+  const [sortMode, setSortMode] = useState<'default' | 'recent'>(
+    () => (localStorage.getItem('sortMode') as 'default' | 'recent') || 'default'
   );
   const [macroPresets, setMacroPresets] = useState<MacroPreset[]>(() => JSON.parse(localStorage.getItem('macroPresets') || '[]'));
   const [importQualityReports, setImportQualityReports] = useState<Record<string, ImportQualityReport>>({});
@@ -169,10 +169,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('safeLockEnabled', String(safeLockEnabled));
   }, [safeLockEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('favorites_v2', JSON.stringify(favorites));
-  }, [favorites]);
 
   useEffect(() => {
     localStorage.setItem('pinnedSounds', JSON.stringify(pinnedSounds));
@@ -240,15 +236,17 @@ function App() {
     const savedGroups = localStorage.getItem('groups');
     if (savedGroups) {
       const parsed: Group[] = JSON.parse(savedGroups);
-      // 迁移旧数据：移除 __imported__ 组，将其音效归入 DEFAULT
+      // 迁移旧数据：移除 __imported__ 组，将其音效归入 默认
       const filtered = parsed.filter(g => g.id !== '__imported__');
-      if (filtered.length === 0) {
-        setGroups([{ id: '__builtin__', name: 'DEFAULT', color: '#58a6ff', soundIds: [] }]);
+      // 迁移：将旧的 DEFAULT 组名改为 默认（针对已有 localStorage 数据）
+      const migrated = filtered.map(g => g.name === 'DEFAULT' ? { ...g, name: '默认' } : g);
+      if (migrated.length === 0) {
+        setGroups([{ id: '__builtin__', name: '默认', color: '#58a6ff', soundIds: [] }]);
       } else {
-        setGroups(filtered);
+        setGroups(migrated);
       }
     } else {
-      setGroups([{ id: '__builtin__', name: 'DEFAULT', color: '#58a6ff', soundIds: [] }]);
+      setGroups([{ id: '__builtin__', name: '默认', color: '#58a6ff', soundIds: [] }]);
     }
 
     const savedSoundGroupMap = localStorage.getItem('soundGroupMap');
@@ -257,7 +255,7 @@ function App() {
       : sounds;
     if (savedSoundGroupMap) {
       const parsedMap = JSON.parse(savedSoundGroupMap);
-      // 迁移：将所有未分组的音效放入 DEFAULT 分组
+      // 迁移：将所有未分组的音效放入 默认 分组
       const needsMigration = allInitSounds.some(s => !parsedMap[s.id]);
       if (needsMigration) {
         const updatedMap = { ...parsedMap };
@@ -276,7 +274,7 @@ function App() {
         setSoundGroupMap(parsedMap);
       }
     } else {
-      // 首次启动：所有音效归 DEFAULT
+      // 首次启动：所有音效归 默认
       const defaultMap: Record<string, string> = {};
       allInitSounds.forEach(s => { defaultMap[s.id] = '__builtin__'; });
       setSoundGroupMap(defaultMap);
@@ -635,12 +633,6 @@ function App() {
     const pinB = pinnedSounds.includes(b.id) ? 1 : 0;
     if (pinA !== pinB) return pinB - pinA;
 
-    if (sortMode === 'favorites') {
-      const favA = favorites.includes(a.id) ? 1 : 0;
-      const favB = favorites.includes(b.id) ? 1 : 0;
-      if (favA !== favB) return favB - favA;
-    }
-
     if (sortMode === 'recent') {
       const idxA = recentPlayed.indexOf(a.id);
       const idxB = recentPlayed.indexOf(b.id);
@@ -900,16 +892,14 @@ function App() {
     sounds.forEach(s => { defaultMap[s.id] = '__builtin__'; });
     setSoundGroupMap(defaultMap);
     setGroups([
-      { id: '__builtin__', name: 'DEFAULT', color: '#58a6ff', soundIds: [] },
+      { id: '__builtin__', name: '默认', color: '#58a6ff', soundIds: [] },
     ]);
-    localStorage.removeItem('favorites');
     localStorage.removeItem('shortcuts');
     localStorage.removeItem('stopShortcut');
     localStorage.removeItem('importedSounds');
     localStorage.removeItem('volume');
     localStorage.removeItem('selectedDevice');
     localStorage.removeItem('safeLockEnabled');
-    localStorage.removeItem('favorites_v2');
     localStorage.removeItem('pinnedSounds');
     localStorage.removeItem('recentPlayed');
     localStorage.removeItem('sortMode');
@@ -919,7 +909,7 @@ function App() {
     localStorage.removeItem('compactGroupFilter');
     localStorage.setItem('soundGroupMap', JSON.stringify(defaultMap));
     localStorage.setItem('groups', JSON.stringify([
-      { id: '__builtin__', name: 'DEFAULT', color: '#58a6ff', soundIds: [] },
+      { id: '__builtin__', name: '默认', color: '#58a6ff', soundIds: [] },
     ]));
     // Clean up imported sound blob URLs from localStorage
     for (let i = 0; i < localStorage.length; i++) {
@@ -1222,11 +1212,6 @@ function App() {
     }
   }, [isMuted, currentVolume]);
 
-  const toggleFavorite = useCallback((soundId: string) => {
-    if (!guardMutation('更新收藏')) return;
-    setFavorites(prev => prev.includes(soundId) ? prev.filter(id => id !== soundId) : [...prev, soundId]);
-  }, [guardMutation]);
-
   const togglePinSound = useCallback((soundId: string) => {
     if (!guardMutation('更新置顶')) return;
     setPinnedSounds(prev => prev.includes(soundId) ? prev.filter(id => id !== soundId) : [...prev, soundId]);
@@ -1391,13 +1376,10 @@ function App() {
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="px-3 py-2.5 border-b border-border-default bg-bg-secondary/50">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative flex-1 min-w-0">
                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="10" cy="10" r="6" />
-                    <path d="M15 15l5 5" />
-                  </svg>
+                  <Search size={12} color={themeColor.muted} />
                 </span>
                 <input
                   type="text"
@@ -1437,12 +1419,11 @@ function App() {
               </button>
               <select
                 value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as 'default' | 'favorites' | 'recent')}
+                onChange={(e) => setSortMode(e.target.value as 'default' | 'recent')}
                 className="shrink-0 px-2 py-2 border border-border-default bg-bg-tertiary text-text-primary text-sm rounded-lg"
                 title="排序方式"
               >
                 <option value="default">默认排序</option>
-                <option value="favorites">收藏优先</option>
                 <option value="recent">最近优先</option>
               </select>
             </div>
@@ -1471,9 +1452,7 @@ function App() {
             onAddSoundToGroup={addSoundToGroup}
             onRemoveSoundFromGroup={removeSoundFromGroup}
             getGroupById={getGroupById}
-            favorites={favorites}
             pinnedSounds={pinnedSounds}
-            onToggleFavorite={toggleFavorite}
             onTogglePin={togglePinSound}
             safeLockEnabled={safeLockEnabled}
             onTrimRequest={(fileName: string) => setTrimFileName(fileName)}
@@ -1539,23 +1518,47 @@ function App() {
           fileName={trimFileName}
           onClose={() => setTrimFileName(null)}
           onTrimmed={(newName) => {
-            const fileUrl = `imported://${encodeURIComponent(newName)}`;
-            const trimmedName = newName.replace(/\.[^/.]+$/, '');
-            const newId = `imported_${Date.now()}`;
-            setImportedSounds(prev => {
-              const newSound: Sound = {
-                id: newId,
-                name: trimmedName,
-                filename: newName,
-                category: 'local',
-                isImported: true,
-              };
-              localStorage.setItem(`sound_${newId}`, fileUrl);
-              const allImported = [...prev, newSound];
-              localStorage.setItem('importedSounds', JSON.stringify(allImported));
-              return allImported;
-            });
-            setHasImported(true);
+            // 替换原文件: 更新已有条目，加时间戳防缓存
+            if (newName === trimFileName) {
+              const fileUrl = `imported://${encodeURIComponent(newName)}?t=${Date.now()}`;
+              setImportedSounds(prev => {
+                const updated = prev.map(s =>
+                  s.filename === newName ? { ...s } : s
+                );
+                // Update blob URL in localStorage
+                const existing = prev.find(s => s.filename === newName);
+                if (existing) {
+                  localStorage.setItem(`sound_${existing.id}`, fileUrl);
+                  // Clear Howl ref so it re-fetches fresh audio
+                  const oldHowl = soundRefs.current[existing.id];
+                  if (oldHowl) { oldHowl.unload(); }
+                  delete soundRefs.current[existing.id];
+                  // Clear blob URL cache
+                  removeBlobCacheEntry(existing.id);
+                }
+                localStorage.setItem('importedSounds', JSON.stringify(updated));
+                return updated;
+              });
+            } else {
+              // 创建新条目（现有行为）
+              const fileUrl = `imported://${encodeURIComponent(newName)}`;
+              const trimmedName = newName.replace(/\.[^/.]+$/, '');
+              const newId = `imported_${Date.now()}`;
+              setImportedSounds(prev => {
+                const newSound: Sound = {
+                  id: newId,
+                  name: trimmedName,
+                  filename: newName,
+                  category: 'local',
+                  isImported: true,
+                };
+                localStorage.setItem(`sound_${newId}`, fileUrl);
+                const allImported = [...prev, newSound];
+                localStorage.setItem('importedSounds', JSON.stringify(allImported));
+                return allImported;
+              });
+              setHasImported(true);
+            }
             setTrimFileName(null);
           }}
         />

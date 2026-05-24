@@ -26,6 +26,7 @@ export default function TrimmerModal({ open, fileName, onClose, onTrimmed }: Tri
   const [playing, setPlaying] = useState(false);
   const [playPos, setPlayPos] = useState(0);
   const [error, setError] = useState('');
+  const [replaceOriginal, setReplaceOriginal] = useState(false);
 
   const playTimer = useRef<number | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -291,7 +292,7 @@ export default function TrimmerModal({ open, fileName, onClose, onTrimmed }: Tri
     setError('');
     try {
       const api = (window as any).electron?.ipcRenderer;
-      const result = await api.invoke('trim-sound', fileName, startSec, endSec);
+      const result = await api.invoke('trim-sound', fileName, startSec, endSec, replaceOriginal);
       if (result?.fileName) {
         onTrimmed(result.fileName);
         onClose();
@@ -369,6 +370,15 @@ export default function TrimmerModal({ open, fileName, onClose, onTrimmed }: Tri
                 终点 <span className="text-accent font-mono">{endSec.toFixed(2)}s</span>
                 {'  '}({selDur.toFixed(2)}s)
               </div>
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={replaceOriginal}
+                  onChange={(e) => setReplaceOriginal(e.target.checked)}
+                  className="accent-accent"
+                />
+                替换原文件
+              </label>
               <div className="flex-1" />
               <button
                 onClick={applyTrim}

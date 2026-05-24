@@ -1,19 +1,17 @@
 import type { Category } from '../data/sounds';
-import { Gamepad, Globe, PixelStar } from './ModernIcons';
+import { Gamepad, Globe } from './ModernIcons';
 
 interface CategoryTabsProps {
   categories: Category[];
   activeCategory: string;
   onCategoryChange: (categoryId: string) => void;
-  favoritesCount: number;
 }
 
-function CategoryTabs({ categories, activeCategory, onCategoryChange, favoritesCount }: CategoryTabsProps) {
+function CategoryTabs({ categories, activeCategory, onCategoryChange }: CategoryTabsProps) {
   const categoryIcon = (id: string) => {
     switch (id) {
       case 'local': return <Gamepad size={14} color="currentColor" />;
       case 'online': return <Globe size={14} color="currentColor" />;
-      case 'favorite': return <PixelStar size={14} color="currentColor" />;
       default: return <Gamepad size={14} color="currentColor" />;
     }
   };
@@ -33,9 +31,6 @@ function CategoryTabs({ categories, activeCategory, onCategoryChange, favoritesC
         >
           <span className="shrink-0">{categoryIcon(category.id)}</span>
           <span>{category.name}</span>
-          {category.id === 'favorite' && favoritesCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-accent-gold/20 text-accent-gold rounded-md">{favoritesCount}</span>
-          )}
         </button>
       ))}
     </div>

@@ -70,6 +70,7 @@
     "archiver": "^8.0.0",
     "howler": "^2.2.4",
     "koffi": "^2.16.2",
+    "lucide-react": "^1.16.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "uiohook-napi": "^1.5.5"

@@ -5,7 +5,7 @@ import * as child_process from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { ZipArchive } from 'archiver';
 import AdmZip from 'adm-zip';
-import { UiohookKey } from 'uiohook-napi';
+import { uIOhook, UiohookKey } from 'uiohook-napi';
 import { ValorantLogDetector } from './valorant/log-detector';
 import type { ValorantEventPayload, ValorantStatus } from './valorant/types';
 
@@ -14,6 +14,8 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // 防止 Chromium 在窗口被遮挡时（如全屏游戏后方）挂起 AudioContext
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// 注释掉: 关闭 GPU 加速导致 DWM 合成透明窗口走 CPU 路径，鼠标移动变卡
+// app.disableHardwareAcceleration();
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -29,8 +31,10 @@ let soundBrowserWebRequestHandler: ((details: Electron.OnBeforeRequestListenerDe
 let valorantDetector: ValorantLogDetector | null = null;
 let pendingPicker: { choices: Array<{ id: string; name: string }>; timer: ReturnType<typeof setTimeout> } | null = null;
 let pickerPrefixKeyName = '`';
+let pickerPrefixKeyCode = 41; // UiohookKey.Backquote
 let pickerPrefixHeld = false;
 let isRecordingShortcut = false;
+let uIOhookActive = false;
 
 // uiohook-napi 低层键盘钩子（全屏游戏下仍能捕获快捷键）
 const soundShortcutMap = new Map<string, string>();
@@ -117,8 +121,94 @@ const systemShortcutActions: Record<string, () => void> = {
   },
 };
 
-// ─── 键盘钩子已替换为 koffi GetAsyncKeyState 轮询 ───
+// ─── uiohook-napi 事件驱动键盘钩子（零轮询，即时响应）───
 const capturedSounds: Record<string, { url: string; name: string; timestamp: number }> = {};
+
+// ─── 事件驱动快捷键处理 ───
+function startEventDrivenHook() {
+  try {
+    uIOhook.on('keydown', (e: any) => {
+      if (isRecordingShortcut) return;
+
+      // --- Track prefix key for Valorant picker ---
+      if (e.keycode === pickerPrefixKeyCode) {
+        pickerPrefixHeld = true;
+      }
+
+      // --- Valorant picker: number keys while prefix held ---
+      if (pendingPicker && pickerPrefixHeld) {
+        const numIdx = e.keycode - 2; // UiohookKey.1=2, UiohookKey.2=3...
+        if (numIdx >= 0 && numIdx < 9 && numIdx < pendingPicker.choices.length) {
+          clearTimeout(pendingPicker.timer);
+          pendingPicker.timer = setTimeout(() => {
+            hideOverlay();
+            pendingPicker = null;
+          }, 3000);
+          mainWindow?.webContents.send('shortcut-triggered', pendingPicker.choices[numIdx].id);
+          return;
+        }
+      }
+
+      // Build modifier mask from event (uiohook provides modifier state per-key)
+      let mask = 0;
+      if (e.ctrlKey) mask |= MOD_CTRL;
+      if (e.shiftKey) mask |= MOD_SHIFT;
+      if (e.altKey) mask |= MOD_ALT;
+      if (e.metaKey) mask |= MOD_META;
+
+      const keyName = KEY_NAME_MAP[e.keycode as number];
+      if (!keyName) return;
+
+      // --- F12 debug ---
+      if (keyName === 'F12' && mainWindow) {
+        mainWindow.setTitle('[EVENT] F12 at ' + Date.now());
+        setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 3000);
+      }
+
+      // --- System shortcuts (Alt+Space, Ctrl+Shift+Tab) ---
+      for (const combo of Object.keys(systemShortcutActions)) {
+        const parts = combo.split('+');
+        if (parts[parts.length - 1] !== keyName) continue;
+        if (shortcutModifierMask(parts) !== mask) continue;
+        systemShortcutActions[combo]();
+        return;
+      }
+
+      // --- Sound shortcuts ---
+      for (const [shortcutStr, compiled] of compiledSoundShortcuts.entries()) {
+        const parts = shortcutStr.split('+');
+        if (parts[parts.length - 1] !== keyName) continue;
+        if (compiled.mask !== mask) continue;
+        const sid = soundShortcutMap.get(shortcutStr);
+        if (sid) mainWindow?.webContents.send('shortcut-triggered', sid);
+        return;
+      }
+
+      // --- Stop shortcut ---
+      if (compiledStopShortcut) {
+        const stopParts = stopShortcutKey.split('+');
+        if (stopParts[stopParts.length - 1] === keyName && compiledStopShortcut.mask === mask) {
+          mainWindow?.webContents.send('stop-shortcut-triggered');
+        }
+      }
+    });
+
+    uIOhook.on('keyup', (e: any) => {
+      if (e.keycode === pickerPrefixKeyCode) {
+        pickerPrefixHeld = false;
+      }
+    });
+
+    uIOhook.start();
+    uIOhookActive = true;
+    debugLog('uIOhook event hook started');
+    console.log('[uIOhook] event-driven keyboard hook active');
+  } catch (e: any) {
+    uIOhookActive = false;
+    debugLog('uIOhook failed: ' + (e?.message || String(e)));
+    console.log('[uIOhook] failed to start, using polling fallback');
+  }
+}
 
 // ─── Win32 polling fallback (works in exclusive fullscreen games) ───
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -200,9 +290,8 @@ try {
       return true;
     } catch (e) { debugLog('[team] keybd_event scanCode error: ' + String(e)); return false; }
   };
-  // Refresh cached VALORANT handle every 30s
+  // 初始缓存 VALORANT 窗口句柄
   valorantHwnd = findValorantWindow!();
-  setInterval(() => { valorantHwnd = findValorantWindow!(); }, 30000);
   debugLog('koffi loaded: GetAsyncKeyState + keybd_event + SendInput + PostMessage');
 } catch (e: any) {
   debugLog('koffi load FAILED: ' + (e?.message || String(e)));
@@ -462,12 +551,19 @@ function startKeyPolling() {
   const POLL_INTERVAL_IDLE_MS = 140;
 
   const pollTick = () => {
+    // uiohook 事件驱动处理所有快捷键 + 选择器 — 完全零轮询，仅保留慢心跳安全网
+    if (uIOhookActive) {
+      pollingTimer = setTimeout(pollTick, 3000);
+      return;
+    }
+
     let nextIntervalMs = POLL_INTERVAL_IDLE_MS;
     try {
       if (isRecordingShortcut) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_IDLE_MS); return; }
 
       const hasShortcuts = soundShortcutMap.size > 0 || (stopShortcutKey && stopShortcutKey !== '');
-      if (!hasShortcuts && !pendingPicker) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_IDLE_MS); return; }
+      const hasSystemShortcuts = Object.keys(systemShortcutActions).length > 0;
+      if (!hasShortcuts && !pendingPicker && !hasSystemShortcuts) { pollingTimer = setTimeout(pollTick, POLL_INTERVAL_IDLE_MS); return; }
 
       // --- Track prefix key state (for Valorant picker) ---
       const prefixVK = VK_MAP[pickerPrefixKeyName];
@@ -489,7 +585,7 @@ function startKeyPolling() {
           if (pressed && !wasPressed && i < pendingPicker.choices.length) {
             clearTimeout(pendingPicker.timer);
             pendingPicker.timer = setTimeout(() => {
-              if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
+              hideOverlay();
               pendingPicker = null;
             }, 3000);
             mainWindow?.webContents.send('shortcut-triggered', pendingPicker.choices[i].id);
@@ -498,9 +594,7 @@ function startKeyPolling() {
         }
       }
 
-
-
-      // --- Check sound shortcuts and stop shortcut ---
+      // --- Polling fallback: sound shortcuts and stop shortcut ---
       for (const [shortcutStr, compiled] of compiledSoundShortcuts.entries()) {
         if (compiled.mask !== activeMask) {
           prevShortcutState[shortcutStr] = false;
@@ -674,7 +768,7 @@ const createOverlayWindow = () => {
     resizable: false,
     skipTaskbar: true,
     focusable: false,
-    show: true,
+    show: false,
     hasShadow: false,
     type: 'toolbar',
     webPreferences: {
@@ -685,7 +779,6 @@ const createOverlayWindow = () => {
     },
   });
 
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -707,6 +800,13 @@ const createOverlayWindow = () => {
 const ensureOverlayWindow = (): BrowserWindow | null => {
   if (!overlayWindow) createOverlayWindow();
   return overlayWindow;
+};
+
+const hideOverlay = () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.setAlwaysOnTop(false);
+    overlayWindow.hide();
+  }
 };
 
 // ─── Spotlight search window ───
@@ -806,7 +906,6 @@ const createWindow = (): void => {
     x: screenWidth - 540,
     y: screenHeight - 560,
     frame: false,
-    transparent: true,
     resizable: true,
     skipTaskbar: false,
     focusable: true,
@@ -958,6 +1057,7 @@ app.on('second-instance', () => {
   }
 });
 app.whenReady().then(() => {
+  try { (process as any).setPriority(process.pid, 19); } catch (_) {} // lowest priority — don't compete with game
   const soundMimeTypes: Record<string, string> = {
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
@@ -975,6 +1075,9 @@ app.whenReady().then(() => {
         'Content-Length': String(data.length),
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
   };
@@ -1052,8 +1155,13 @@ app.whenReady().then(() => {
     console.log('[GameSound FX] 托盘创建失败:', err);
   }
 
-  startKeyPolling();
-  console.log('[GameSound FX] 键盘轮询后备已启动');
+  startEventDrivenHook();
+  if (!uIOhookActive) {
+    startKeyPolling();
+    console.log('[GameSound FX] 键盘钩子: uiohook 失败，回退到 koffi 轮询');
+  } else {
+    console.log('[GameSound FX] 键盘钩子已启动 (uiohook 事件驱动，零轮询)');
+  }
 
   valorantDetector = new ValorantLogDetector(
     (payload: ValorantEventPayload) => {
@@ -1323,10 +1431,20 @@ app.whenReady().then(() => {
 
   // Forward now-playing data from the main renderer to the overlay window
   ipcMain.on('overlay-show-now-playing', (_event, soundName: string) => {
-    ensureOverlayWindow()?.webContents.send('now-playing-changed', soundName);
+    const win = ensureOverlayWindow();
+    if (!win) return;
+    if (!win.isVisible()) win.show();
+    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.webContents.send('now-playing-changed', soundName);
   });
   ipcMain.on('overlay-hide-now-playing', () => {
     if (overlayWindow) overlayWindow.webContents.send('now-playing-changed', null);
+    setTimeout(() => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.setAlwaysOnTop(false);
+        overlayWindow.hide();
+      }
+    }, 2000);
   });
 
   ipcMain.on('get-valorant-status', (event) => {
@@ -1343,6 +1461,7 @@ app.whenReady().then(() => {
 
   ipcMain.on('set-picker-prefix-key', (_event, data: { keyCode: number; keyName: string }) => {
     pickerPrefixKeyName = data.keyName;
+    pickerPrefixKeyCode = data.keyCode;
     // Update overlay hint if picker is showing
     if (pendingPicker) {
       ensureOverlayWindow()?.webContents.send('valorant-picker-update', {
@@ -1462,25 +1581,28 @@ app.whenReady().then(() => {
 
   // Valorant picker: show sound choices in overlay
   ipcMain.on('valorant-show-picker', (_event, data: { choices: Array<{ id: string; name: string }>; eventLabel?: string; timeoutMs?: number }) => {
+    const win = ensureOverlayWindow();
+    if (!win) return;
+    if (!win.isVisible()) win.show();
+    win.setAlwaysOnTop(true, 'screen-saver', 1);
     const timeoutMs = data.timeoutMs || 15000;
     if (pendingPicker) {
-      // Extend timeout, update choices — no flicker hide/show
       clearTimeout(pendingPicker.timer);
       pendingPicker.choices = data.choices;
       pendingPicker.timer = setTimeout(() => {
-        if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
+        hideOverlay();
         pendingPicker = null;
       }, timeoutMs);
-      ensureOverlayWindow()?.webContents.send('valorant-picker-update', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
+      win.webContents.send('valorant-picker-update', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
     } else {
       pendingPicker = {
         choices: data.choices,
         timer: setTimeout(() => {
-          if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
+          hideOverlay();
           pendingPicker = null;
         }, timeoutMs),
       };
-      ensureOverlayWindow()?.webContents.send('valorant-picker-show', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
+      win.webContents.send('valorant-picker-show', { choices: data.choices, eventLabel: data.eventLabel, prefixKeyName: pickerPrefixKeyName });
     }
   });
 
@@ -1490,6 +1612,7 @@ app.whenReady().then(() => {
       pendingPicker = null;
     }
     if (overlayWindow) overlayWindow.webContents.send('valorant-picker-hide');
+    setTimeout(() => hideOverlay(), 1000);
   });
 
   console.log('[GameSound FX] 应用已启动 - 支持全屏游戏悬浮使用');
@@ -1530,7 +1653,7 @@ app.whenReady().then(() => {
   });
 
   // --- Trim sound: ffmpeg cut -----------------------------------------------------------
-  ipcMain.handle("trim-sound", async (_event, fileName: string, startSec: number, endSec: number) => {
+  ipcMain.handle("trim-sound", async (_event, fileName: string, startSec: number, endSec: number, replaceOriginal?: boolean) => {
     return new Promise((resolve, reject) => {
       const importedDir = getImportedSoundsDir();
 
@@ -1554,8 +1677,8 @@ app.whenReady().then(() => {
 
       const ext = path.extname(fileName);
       const baseName = path.basename(fileName, ext);
-      const outName = baseName + "_trimmed" + ext;
-      const outPath = path.join(importedDir, outName);
+      const tempName = baseName + "_trimmed" + ext;
+      const tempPath = path.join(importedDir, tempName);
 
       let ffmpegBin = "ffmpeg";
       try {
@@ -1563,14 +1686,22 @@ app.whenReady().then(() => {
         if (pkg) ffmpegBin = pkg;
       } catch (_) { /* use system ffmpeg */ }
 
-      const args = ["-y", "-i", srcPath, "-ss", String(startSec), "-to", String(endSec), "-c", "copy", outPath];
+      const args = ["-y", "-i", srcPath, "-ss", String(startSec), "-to", String(endSec), "-c", "copy", tempPath];
       const proc: ChildProcess = child_process.spawn(ffmpegBin, args);
 
       let stderr = "";
       proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
 
       proc.on("close", (code: number | null) => {
-        if (code === 0) resolve({ fileName: outName });
+        if (code === 0) {
+          if (replaceOriginal) {
+            try { fs.unlinkSync(srcPath); } catch (_) {}
+            try { fs.renameSync(tempPath, srcPath); } catch (_) {}
+            resolve({ fileName, replaced: true });
+          } else {
+            resolve({ fileName: tempName, replaced: false });
+          }
+        }
         else reject(new Error(stderr || "ffmpeg exited " + code));
       });
 
@@ -1669,5 +1800,9 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
   valorantDetector?.stop();
+  if (uIOhookActive) {
+    try { uIOhook.stop(); } catch (_) {}
+    uIOhookActive = false;
+  }
   stopKeyPolling();
 });

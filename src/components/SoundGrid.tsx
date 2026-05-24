@@ -19,9 +19,7 @@ interface SoundGridProps {
   onRemoveSoundFromGroup: (soundId: string, groupId: string) => void;
   getGroupById: (groupId: string) => Group | undefined;
   emptyHint?: string;
-  favorites: string[];
   pinnedSounds: string[];
-  onToggleFavorite: (soundId: string) => void;
   onTogglePin: (soundId: string) => void;
   safeLockEnabled?: boolean;
   onTrimRequest?: (fileName: string) => void;
@@ -48,9 +46,7 @@ interface SoundCardProps {
   groups: Group[];
   soundGroupMap: Record<string, string>;
   getGroupById: (groupId: string) => Group | undefined;
-  isFavorite: boolean;
   isPinned: boolean;
-  onToggleFavorite: (soundId: string) => void;
   onTogglePin: (soundId: string) => void;
   safeLockEnabled?: boolean;
   onTrimRequest?: (fileName: string) => void;
@@ -60,7 +56,7 @@ const SoundCard = memo(function SoundCard({
   sound, isPlaying, shortcut, isMenuOpen, isRecThis, recordingKeys, groupColor, menuPos,
   onToggleSound, onRemoveShortcut, onRecordStart,
   onMenuClick, onAddToGroup, onRemoveFromGroup, onDeleteSound, onDeleteRequest, onMenuClose,
-  groups, soundGroupMap, getGroupById, isFavorite, isPinned, onToggleFavorite, onTogglePin, safeLockEnabled, onTrimRequest,
+  groups, soundGroupMap, getGroupById, isPinned, onTogglePin, safeLockEnabled, onTrimRequest,
 }: SoundCardProps) {
   return (
     <div className="relative">
@@ -68,7 +64,7 @@ const SoundCard = memo(function SoundCard({
         onClick={() => onToggleSound(sound)}
         className={`w-full min-h-[44px] pl-3 pr-2 py-2 text-sm text-left cursor-pointer border flex items-center gap-1.5 rounded-xl transition-colors
           ${isPlaying
-            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[glowPulse_1.8s_ease-in-out_infinite]'
+            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[glowPulse_1.8s_ease-in-out_infinite,card-dance_1.2s_ease-in-out_infinite]'
             : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent hover:text-accent hover:bg-bg-soft/35'
           }`}
           style={isPlaying ? { willChange: 'transform' } : undefined}
@@ -128,12 +124,6 @@ const SoundCard = memo(function SoundCard({
           <div className="mb-1">
             {groups.length > 0 && (
               <>
-                <button
-                  onClick={() => { onToggleFavorite(sound.id); onMenuClose(); }}
-                  className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-text-primary text-sm rounded-lg text-left cursor-pointer hover:border-border-default transition-none"
-                >
-                  {isFavorite ? '取消收藏' : '加入收藏'}
-                </button>
                 <button
                   onClick={() => { onTogglePin(sound.id); onMenuClose(); }}
                   className="w-full px-2.5 py-1.5 border border-transparent bg-transparent text-text-primary text-sm rounded-lg text-left cursor-pointer hover:border-border-default transition-none"
@@ -198,7 +188,7 @@ const SoundCard = memo(function SoundCard({
   );
 });
 
-function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint, favorites, pinnedSounds, onToggleFavorite, onTogglePin, safeLockEnabled, onTrimRequest }: SoundGridProps) {
+function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortcut, onRemoveShortcut, onDeleteSound, groups, soundGroupMap, onAddSoundToGroup, onRemoveSoundFromGroup, getGroupById, emptyHint, pinnedSounds, onTogglePin, safeLockEnabled, onTrimRequest }: SoundGridProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [isRecording, setIsRecording] = useState(false);
@@ -307,9 +297,7 @@ function SoundGrid({ sounds, playingSound, onToggleSound, shortcuts, onAddShortc
                 groups={groups}
                 soundGroupMap={soundGroupMap}
                 getGroupById={getGroupById}
-                isFavorite={favorites.includes(sound.id)}
                 isPinned={pinnedSounds.includes(sound.id)}
-                onToggleFavorite={onToggleFavorite}
                 onTogglePin={onTogglePin}
                 safeLockEnabled={safeLockEnabled}
                 onTrimRequest={onTrimRequest}
