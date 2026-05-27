@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage, globalShortcut } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
@@ -76,8 +76,8 @@ const KEY_NAME_MAP: Record<number, string> = {
   [UiohookKey.PageDown]: 'PageDown', [UiohookKey.Home]: 'Home',
   [UiohookKey.PageUp]: 'PageUp', [UiohookKey.Insert]: 'Insert',
 
-  [UiohookKey.ArrowUp]: 'Up', [UiohookKey.ArrowDown]: 'Down',
-  [UiohookKey.ArrowLeft]: 'Left', [UiohookKey.ArrowRight]: 'Right',
+  [UiohookKey.ArrowUp]: 'ArrowUp', [UiohookKey.ArrowDown]: 'ArrowDown',
+  [UiohookKey.ArrowLeft]: 'ArrowLeft', [UiohookKey.ArrowRight]: 'ArrowRight',
 
   [UiohookKey.Minus]: '-', [UiohookKey.Equal]: '=',
   [UiohookKey.BracketLeft]: '[', [UiohookKey.BracketRight]: ']',
@@ -108,16 +108,6 @@ const systemShortcutActions: Record<string, () => void> = {
     }
     // Release Tab so game doesn't register it (scoreboard trigger)
     if (keybd_event_fn) keybd_event_fn(0x09, 0, 0x0002, 0);
-  },
-  'Alt+Space': () => {
-    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
-      spotlightWindow.close();
-      spotlightWindow = null;
-    } else {
-      ensureSpotlightWindow();
-      spotlightWindow?.show();
-      spotlightWindow?.focus();
-    }
   },
 };
 
@@ -547,13 +537,12 @@ function startKeyPolling() {
     return;
   }
 
-  const POLL_INTERVAL_FAST_MS = 50;
-  const POLL_INTERVAL_IDLE_MS = 140;
+  const POLL_INTERVAL_FAST_MS = 80;
+  const POLL_INTERVAL_IDLE_MS = 250;
 
   const pollTick = () => {
-    // uiohook 事件驱动处理所有快捷键 + 选择器 — 完全零轮询，仅保留慢心跳安全网
+    // uiohook 事件驱动处理所有快捷键 — 完全零轮询，不要任何 koffi FFI 调用来干扰游戏
     if (uIOhookActive) {
-      pollingTimer = setTimeout(pollTick, 3000);
       return;
     }
 
@@ -622,7 +611,7 @@ function startKeyPolling() {
         prevShortcutState[stopShortcutKey] = stopChordPressed;
       }
 
-      
+
 
       // --- Check system shortcuts (e.g. Ctrl+Shift+Tab) ---
       for (const combo of Object.keys(systemShortcutActions)) {
@@ -645,18 +634,7 @@ function startKeyPolling() {
         prevShortcutState[combo] = chordPressed;
       }
 
-      
 
-      // --- F12 debug ---
-      {
-        const f12Pressed = (getAsyncKeyState!(0x7B) & 0x8000) !== 0;
-        const f12WasPressed = prevShortcutState['__F12__'] || false;
-        if (f12Pressed && !f12WasPressed && mainWindow) {
-          mainWindow.setTitle('[POLL ALIVE] F12 at ' + Date.now());
-          setTimeout(() => mainWindow?.setTitle('GameSound FX - 游戏音效助手'), 3000);
-        }
-        prevShortcutState['__F12__'] = f12Pressed;
-      }
 
     } catch (_e) { /* poll error */ }
     pollingTimer = setTimeout(pollTick, nextIntervalMs);
@@ -930,42 +908,6 @@ const createWindow = (): void => {
   });
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('[GameSound FX] Renderer did-finish-load');
-    // Recovery: restore imported sounds from disk if localStorage was reset
-    try {
-      const importedDir = getImportedSoundsDir();
-      const audioFiles = fs.readdirSync(importedDir).filter((f: string) => f.endsWith('.mp3') || f.endsWith('.wav') || f.endsWith('.ogg'));
-      if (audioFiles.length > 0) {
-        const recoveryScript = `
-          (function() {
-            try {
-              var existing = localStorage.getItem('importedSounds');
-              if (existing && JSON.parse(existing).length > 0) return false;
-              var files = ${JSON.stringify(audioFiles)};
-              var sounds = files.map(function(f, i) {
-                var name = f.replace(/\\.[^/.]+$/, '');
-                var id = 'imported_' + Date.now() + '_' + i;
-                return { id: id, name: name, filename: f };
-              });
-              var soundArray = sounds.map(function(s) {
-                return { id: s.id, name: s.name, filename: s.filename, category: 'local', isImported: true };
-              });
-              localStorage.setItem('importedSounds', JSON.stringify(soundArray));
-              sounds.forEach(function(s) {
-                localStorage.setItem('sound_' + s.id, 'imported://' + encodeURIComponent(s.filename));
-              });
-              var defaultMap = {};
-              soundArray.forEach(function(s) { defaultMap[s.id] = '__builtin__'; });
-              localStorage.setItem('soundGroupMap', JSON.stringify(defaultMap));
-              console.log('[recovery] restored', soundArray.length, 'imported sounds');
-              return true;
-            } catch(e) { console.error('[recovery] error:', e); return false; }
-          })();
-        `;
-        mainWindow?.webContents.executeJavaScript(recoveryScript).then((restored) => {
-          if (restored) setTimeout(() => mainWindow?.reload(), 100);
-        });
-      }
-    } catch(e) { console.log('[recovery] scan error:', e); }
   });
   mainWindow.webContents.on('did-fail-load', (_e, errCode, errDesc) => {
     console.error('[GameSound FX] Renderer did-fail-load:', errCode, errDesc);
@@ -1161,6 +1103,23 @@ app.whenReady().then(() => {
     console.log('[GameSound FX] 键盘钩子: uiohook 失败，回退到 koffi 轮询');
   } else {
     console.log('[GameSound FX] 键盘钩子已启动 (uiohook 事件驱动，零轮询)');
+  }
+
+  // 用 globalShortcut 注册 Alt+Space，绕过 Windows 系统菜单拦截
+  try {
+    globalShortcut.register('Alt+Space', () => {
+      if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+        spotlightWindow.close();
+        spotlightWindow = null;
+      } else {
+        ensureSpotlightWindow();
+        spotlightWindow?.show();
+        spotlightWindow?.focus();
+      }
+    });
+    console.log('[GameSound FX] globalShortcut Alt+Space 已注册');
+  } catch (e) {
+    console.log('[GameSound FX] globalShortcut Alt+Space 注册失败:', e);
   }
 
   valorantDetector = new ValorantLogDetector(
@@ -1618,6 +1577,32 @@ app.whenReady().then(() => {
   console.log('[GameSound FX] 应用已启动 - 支持全屏游戏悬浮使用');
 
   // --- Trim sound: read full audio bytes -------------------------------------------------
+  function findFfmpegBin(): string {
+    // 1) ffmpeg-static 包
+    try {
+      const pkg = require("ffmpeg-static");
+      if (pkg && typeof pkg === "string" && fs.existsSync(pkg)) {
+        debugLog("[ffmpeg] found via ffmpeg-static: " + pkg);
+        return pkg;
+      }
+    } catch (_) {}
+    // 2) 相对于 dist/ 目录
+    const candidates = [
+      path.join(__dirname, "..", "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+      path.join(__dirname, "..", "..", "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+      path.join(process.resourcesPath, "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        debugLog("[ffmpeg] found via relative path: " + p);
+        return p;
+      }
+    }
+    // 3) 最后尝试系统 PATH
+    debugLog("[ffmpeg] not found via ffmpeg-static, falling back to PATH");
+    return "ffmpeg";
+  }
+
   ipcMain.handle("read-sound-full", async (_event, fileName: string) => {
     try {
       // Try imported sounds first
@@ -1680,11 +1665,7 @@ app.whenReady().then(() => {
       const tempName = baseName + "_trimmed" + ext;
       const tempPath = path.join(importedDir, tempName);
 
-      let ffmpegBin = "ffmpeg";
-      try {
-        const pkg = require("ffmpeg-static");
-        if (pkg) ffmpegBin = pkg;
-      } catch (_) { /* use system ffmpeg */ }
+      const ffmpegBin = findFfmpegBin();
 
       const args = ["-y", "-i", srcPath, "-ss", String(startSec), "-to", String(endSec), "-c", "copy", tempPath];
       const proc: ChildProcess = child_process.spawn(ffmpegBin, args);
@@ -1805,4 +1786,5 @@ app.on('will-quit', () => {
     uIOhookActive = false;
   }
   stopKeyPolling();
+  globalShortcut.unregisterAll();
 });

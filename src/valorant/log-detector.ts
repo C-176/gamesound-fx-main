@@ -47,6 +47,7 @@ export class ValorantLogDetector {
   private onStatus: StatusCallback;
   private watchTimer: ReturnType<typeof setInterval> | null = null;
   private fsWatcher: fs.FSWatcher | null = null;
+  private watchActive = false;
   private logDir: string | null = null;
   private logFilePath: string | null = null;
   private filePosition = 0;
@@ -75,8 +76,8 @@ export class ValorantLogDetector {
   async start() {
     await this.discoverLogFile();
     this.tick();
-    // Polling fallback (1s) �?catches changes fs.watch might miss
-    this.watchTimer = setInterval(() => this.tick(), 1000);
+    // fs.watch 激活时轮询只是最后兜底，降低频率减少 Vanguard 拦截 io 造成的卡顿
+    this.watchTimer = setInterval(() => this.tick(), 4000);
   }
 
   stop() {
@@ -89,6 +90,7 @@ export class ValorantLogDetector {
   }
 
   private closeWatcher() {
+    this.watchActive = false;
     if (this.fsWatcher) {
       try { this.fsWatcher.close(); } catch {}
       this.fsWatcher = null;
@@ -106,6 +108,9 @@ export class ValorantLogDetector {
           this.readNewLines();
         }
       });
+      if (this.fsWatcher) {
+        this.watchActive = true;
+      }
     } catch (e) {
       console.log('[ValorantLogDetector] fs.watch not available, using polling only');
     }
@@ -163,7 +168,8 @@ export class ValorantLogDetector {
         return;
       }
 
-      if (this.gameConnected) {
+      // fs.watch 已激活时由事件驱动读取，轮询只需检查断连，不做文件 I/O
+      if (this.gameConnected && !this.watchActive) {
         this.readNewLines();
       }
     } catch (e) {
@@ -278,7 +284,7 @@ export class ValorantLogDetector {
           continue;
         }
 
-        // Match start �?MapLoadModel with Match Setup and Map Ready (not MainMenu)
+        // Match start �?MapLoadModel with Match Setup and Map Ready (not MainMenu)
         if (line.includes('LogMapLoadModel') && line.includes('Match Setup: TRUE') && line.includes('Map Ready: TRUE') && !line.includes('MainMenuV2') && !this.initialScan && !this.matchStartedForCurrentGame) {
           const mapMatch = line.match(/\[Map Name:\s*(\w+)/);
           if (mapMatch) {
@@ -290,7 +296,7 @@ export class ValorantLogDetector {
           continue;
         }
 
-        // Agent select �?player character received
+        // Agent select �?player character received
         if (line.includes('Current character: Default__') && !this.initialScan) {
           const agentMatch = line.match(/Default__(\w+)_PC_C/);
           if (agentMatch && agentMatch[1] !== this.currentAgent) {

@@ -64,10 +64,9 @@ const SoundCard = memo(function SoundCard({
         onClick={() => onToggleSound(sound)}
         className={`w-full min-h-[44px] pl-3 pr-2 py-2 text-sm text-left cursor-pointer border flex items-center gap-1.5 rounded-xl transition-colors
           ${isPlaying
-            ? 'border-accent bg-accent-dim text-accent-pink shadow-retro-sm animate-[glowPulse_1.8s_ease-in-out_infinite,card-dance_1.2s_ease-in-out_infinite]'
+            ? 'border-accent bg-accent-dim text-accent-pink '
             : 'border-border-default bg-bg-tertiary text-text-primary hover:border-accent hover:text-accent hover:bg-bg-soft/35'
           }`}
-          style={isPlaying ? { willChange: 'transform' } : undefined}
       >
         {groupColor && (
           <span className="w-2 h-2 shrink-0 rounded-full border border-bg-primary" style={{ backgroundColor: groupColor }} />

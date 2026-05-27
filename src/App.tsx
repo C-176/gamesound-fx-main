@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Howl } from 'howler';
 import { sounds, type Sound, type Group } from './data/sounds';
 import TitleBar from './components/TitleBar';
@@ -613,35 +613,39 @@ function App() {
     }
   }, []);
 
-  const allSounds = [...sounds, ...importedSounds];
+  const allSounds = useMemo(() => [...sounds, ...importedSounds], [sounds, importedSounds]);
 
   const normalizedQuery = normalizeKeyword(searchQuery);
-  const filteredSoundsBase = allSounds.filter(sound => {
-    if (activeGroupFilter) {
-      if (soundGroupMap[sound.id] !== activeGroupFilter) return false;
-    }
-    if (!normalizedQuery) return true;
-    const normalizedName = normalizeKeyword(sound.name);
-    const matchesSearch =
-      normalizedName.includes(normalizedQuery) ||
-      isSubsequence(normalizedQuery, normalizedName);
-    return matchesSearch;
-  });
+  const filteredSounds = useMemo(() => {
+    const base = allSounds.filter(sound => {
+      if (activeGroupFilter) {
+        if (soundGroupMap[sound.id] !== activeGroupFilter) return false;
+      } else if (!soundGroupMap[sound.id]) {
+        return false; // 只显示已分组的音效
+      }
+      if (!normalizedQuery) return true;
+      const normalizedName = normalizeKeyword(sound.name);
+      const matchesSearch =
+        normalizedName.includes(normalizedQuery) ||
+        isSubsequence(normalizedQuery, normalizedName);
+      return matchesSearch;
+    });
 
-  const filteredSounds = [...filteredSoundsBase].sort((a, b) => {
-    const pinA = pinnedSounds.includes(a.id) ? 1 : 0;
-    const pinB = pinnedSounds.includes(b.id) ? 1 : 0;
-    if (pinA !== pinB) return pinB - pinA;
+    return [...base].sort((a, b) => {
+      const pinA = pinnedSounds.includes(a.id) ? 1 : 0;
+      const pinB = pinnedSounds.includes(b.id) ? 1 : 0;
+      if (pinA !== pinB) return pinB - pinA;
 
-    if (sortMode === 'recent') {
-      const idxA = recentPlayed.indexOf(a.id);
-      const idxB = recentPlayed.indexOf(b.id);
-      const scoreA = idxA === -1 ? Number.MAX_SAFE_INTEGER : idxA;
-      const scoreB = idxB === -1 ? Number.MAX_SAFE_INTEGER : idxB;
-      if (scoreA !== scoreB) return scoreA - scoreB;
-    }
-    return a.name.localeCompare(b.name, 'zh-Hans-CN');
-  });
+      if (sortMode === 'recent') {
+        const idxA = recentPlayed.indexOf(a.id);
+        const idxB = recentPlayed.indexOf(b.id);
+        const scoreA = idxA === -1 ? Number.MAX_SAFE_INTEGER : idxA;
+        const scoreB = idxB === -1 ? Number.MAX_SAFE_INTEGER : idxB;
+        if (scoreA !== scoreB) return scoreA - scoreB;
+      }
+      return a.name.localeCompare(b.name, 'zh-Hans-CN');
+    });
+  }, [allSounds, activeGroupFilter, soundGroupMap, normalizedQuery, isSubsequence, pinnedSounds, sortMode, recentPlayed]);
 
   const playSound = useCallback(async (sound: Sound, loop = false) => {
     pausedSoundRef.current = null;
@@ -1282,7 +1286,7 @@ function App() {
     setMacroPresets(prev => prev.filter(m => m.id !== macroId));
   }, [guardMutation, activeMacroId, stopMacroPlayback]);
 
-  const shortcutHealthIssues: ShortcutHealthIssue[] = (() => {
+  const shortcutHealthIssues: ShortcutHealthIssue[] = useMemo(() => {
     const issues: ShortcutHealthIssue[] = [];
     const singleKeyRisk = Object.keys(shortcuts).filter(k => !k.includes('+'));
     singleKeyRisk.forEach((key) => {
@@ -1306,7 +1310,7 @@ function App() {
       });
     }
     return issues;
-  })();
+  }, [shortcuts, stopShortcut]);
 
   const autoFixShortcutHealth = useCallback(() => {
     if (!guardMutation('自动修复快捷键')) return;

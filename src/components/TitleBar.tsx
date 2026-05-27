@@ -36,23 +36,32 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
           {onValorantToggle && (
             <button
               onClick={onValorantToggle}
-              className={`win-btn rounded-lg ${showValorant ? 'border-accent bg-accent-dim text-accent' : valorantConnected ? 'border-accent-green bg-accent-green/10' : ''}`}
+              className={`win-btn rounded-lg relative ${
+                showValorant
+                  ? 'border-accent bg-accent/20 text-accent shadow-[0_0_10px_rgba(255,94,156,0.5)]'
+                  : valorantConnected
+                    ? 'border-accent-green bg-accent-green/15 text-accent-green shadow-[0_0_8px_rgba(0,255,136,0.35)]'
+                    : 'border-border-default text-text-muted opacity-50'
+              }`}
               title={`${copy.valorant.title}${valorantConnected ? ` · ${copy.valorant.connected}` : ''}`}
             >
-              <Satellite size={12} color={showValorant ? themeColor.accent : valorantConnected ? themeColor.green : 'currentColor'} />
+              {showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent ring-1 ring-bg-primary" />}
+              {valorantConnected && !showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
+              <Satellite size={13} color={showValorant ? themeColor.accent : valorantConnected ? themeColor.green : themeColor.muted} />
             </button>
           )}
           {onTeamToggle && (
             <button
               onClick={onTeamToggle}
-              className={`win-btn rounded-lg ${
+              className={`win-btn rounded-lg relative ${
                 teamMode
-                  ? 'border-accent-pink bg-accent-pink/15 text-accent-pink shadow-[0_0_8px_rgba(255,46,160,0.4)]'
-                  : ''
+                  ? 'border-accent-pink bg-accent-pink/20 text-accent-pink shadow-[0_0_12px_rgba(255,46,160,0.6)]'
+                  : 'border-border-default text-text-muted opacity-50'
               }`}
               title={`团队按键 ${teamMode ? '· 已开启' : '· 已关闭'}`}
             >
-              <UFO size={12} color={teamMode ? themeColor.pink : 'currentColor'} />
+              {teamMode && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-pink ring-1 ring-bg-primary" />}
+              <UFO size={13} color={teamMode ? themeColor.pink : themeColor.muted} />
             </button>
           )}
           <span className="w-px h-5 bg-border-bright mx-0.5" aria-hidden />
