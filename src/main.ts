@@ -8,6 +8,8 @@ import AdmZip from 'adm-zip';
 import { uIOhook, UiohookKey } from 'uiohook-napi';
 import { ValorantLogDetector } from './valorant/log-detector';
 import type { ValorantEventPayload, ValorantStatus } from './valorant/types';
+import { CS2GSIListener } from './csgo/gsi-listener';
+import type { CS2EventPayload, CS2Status } from './csgo/types';
 
 // 禁用自动播放策略，确保全局快捷键触发的音效能正常播放
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -29,6 +31,7 @@ const SOUND_BROWSER_REQUEST_FILTER = {
 };
 let soundBrowserWebRequestHandler: ((details: Electron.OnBeforeRequestListenerDetails, callback: (response: Electron.CallbackResponse) => void) => void) | null = null;
 let valorantDetector: ValorantLogDetector | null = null;
+let csgoDetector: CS2GSIListener | null = null;
 let pendingPicker: { choices: Array<{ id: string; name: string }>; timer: ReturnType<typeof setTimeout> } | null = null;
 let pickerPrefixKeyName = '`';
 let pickerPrefixKeyCode = 41; // UiohookKey.Backquote
@@ -1133,6 +1136,17 @@ app.whenReady().then(() => {
   );
   // Detector starts only when user enables Valorant mode via IPC
 
+  // ─── CS2 Game State Integration ───
+  csgoDetector = new CS2GSIListener(
+    (payload: CS2EventPayload) => {
+      mainWindow?.webContents.send('csgo-event-fired', payload);
+      ensureOverlayWindow()?.webContents.send('csgo-event-fired', payload);
+    },
+    (status: CS2Status) => {
+      mainWindow?.webContents.send('csgo-status-changed', status);
+    }
+  );
+
   ipcMain.on('minimize-window', () => {
     mainWindow?.minimize();
   });
@@ -1392,6 +1406,12 @@ app.whenReady().then(() => {
   ipcMain.on('overlay-show-now-playing', (_event, soundName: string) => {
     const win = ensureOverlayWindow();
     if (!win) return;
+    // Clear any stale event picker so manual playback doesn't show old CS2/Valorant choices
+    if (pendingPicker) {
+      clearTimeout(pendingPicker.timer);
+      pendingPicker = null;
+    }
+    win.webContents.send('valorant-picker-hide');
     if (!win.isVisible()) win.show();
     win.setAlwaysOnTop(true, 'screen-saver', 1);
     win.webContents.send('now-playing-changed', soundName);
@@ -1531,6 +1551,109 @@ app.whenReady().then(() => {
 
   ipcMain.on('valorant-stop-monitor', () => {
     valorantDetector?.stop();
+  });
+
+  // ─── CS2 IPC handlers ───
+  ipcMain.on('csgo-start-monitor', () => {
+    csgoDetector?.start();
+  });
+
+  ipcMain.on('csgo-stop-monitor', () => {
+    csgoDetector?.stop();
+  });
+
+  ipcMain.handle('csgo-get-status', () => {
+    return { connected: csgoDetector?.isConnected() ?? false, port: csgoDetector?.getPort() ?? 3001 };
+  });
+
+  ipcMain.handle('csgo-write-config', () => {
+    const configContent = `"gsfx"
+{
+  "uri"           "http://127.0.0.1:3001"
+  "timeout"       "5.0"
+  "buffer"        "0.1"
+  "throttle"      "0.5"
+  "heartbeat"     "5.0"
+  "data"
+  {
+    "provider"            "1"
+    "map"                 "1"
+    "round"               "1"
+    "player_id"           "1"
+    "player_weapons"      "1"
+    "player_state"        "1"
+    "player_match_stats"  "1"
+    "allplayers_id"       "1"
+    "allplayers_state"    "1"
+    "bomb"                "1"
+  }
+  "output"
+  {
+    "precision_time"      "3"
+    "precision_position"  "1"
+  }
+}
+`;
+    // Try to find CS2 cfg directory
+    const candidates: string[] = [
+      // Steam default
+      'C:/Program Files (x86)/Steam/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg',
+      'C:/Program Files/Steam/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg',
+      // Common secondary Steam libraries
+      'D:/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg',
+      'D:/Games/Steam/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg',
+      'E:/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg',
+    ];
+
+    // Try registry for Steam path
+    try {
+      const reg = require('child_process').execFileSync('reg', ['query', 'HKCU\\SOFTWARE\\Valve\\Steam', '/v', 'SteamPath'], { encoding: 'utf8', timeout: 3000 });
+      const m = reg.match(/SteamPath\s+REG_[\w]+\s+(.+)/i);
+      if (m) {
+        const steamPath = m[1].trim().replace(/\\\\/g, '/');
+        candidates.unshift(path.join(steamPath, 'steamapps', 'common', 'Counter-Strike Global Offensive', 'game', 'csgo', 'cfg'));
+      }
+    } catch (_e) {}
+
+    // Try to discover additional Steam libraries from libraryfolders.vdf
+    try {
+      const possibleSteamPaths = [
+        'C:/Program Files (x86)/Steam',
+        'C:/Program Files/Steam',
+        process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA.replace('AppData\\Local', ''), 'Steam') : '',
+      ].filter(Boolean);
+      for (const steamPath of possibleSteamPaths) {
+        const vdfPath = path.join(steamPath, 'steamapps', 'libraryfolders.vdf');
+        if (fs.existsSync(vdfPath)) {
+          const vdf = fs.readFileSync(vdfPath, 'utf-8');
+          const libMatches = vdf.match(/"path"\s+"([^"]+)"/g);
+          if (libMatches) {
+            for (const libMatch of libMatches) {
+              const libPath = libMatch.match(/"path"\s+"([^"]+)"/)?.[1];
+              if (libPath) {
+                const csgoCfg = path.join(libPath.replace(/\\\\/g, '/'), 'steamapps', 'common', 'Counter-Strike Global Offensive', 'game', 'csgo', 'cfg');
+                if (!candidates.includes(csgoCfg)) candidates.push(csgoCfg);
+              }
+            }
+          }
+        }
+      }
+    } catch (_e) {}
+
+    for (const dir of candidates) {
+      if (!dir) continue;
+      try {
+        if (fs.existsSync(dir)) {
+          const configPath = path.join(dir, 'gamestate_integration_gsfx.cfg');
+          fs.writeFileSync(configPath, configContent, 'utf-8');
+          console.log(`[CS2 GSI] Config written to: ${configPath}`);
+          return { success: true, path: configPath };
+        }
+      } catch (e: any) {
+        console.log(`[CS2 GSI] Failed to write config to ${dir}:`, e?.message);
+      }
+    }
+    return { success: false, path: null };
   });
 
   // Forward renderer-requested shortcuts (from ValorantPanel preview) back to renderer
@@ -1781,6 +1904,7 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
   valorantDetector?.stop();
+  csgoDetector?.stop();
   if (uIOhookActive) {
     try { uIOhook.stop(); } catch (_) {}
     uIOhookActive = false;

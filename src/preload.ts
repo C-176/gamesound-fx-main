@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('electron', {
         'toggle-spotlight-search',
         'resize-spotlight',
         'play-sound-from-spotlight',
+        'csgo-start-monitor',
+        'csgo-stop-monitor',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.send(channel, ...args);
@@ -66,6 +68,8 @@ contextBridge.exposeInMainWorld('electron', {
         'export-config',
         'import-config-preview',
         'import-config-apply',
+        'csgo-get-status',
+        'csgo-write-config',
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -91,6 +95,8 @@ contextBridge.exposeInMainWorld('electron', {
         'valorant-picker-update',
         'valorant-picker-hide',
         'toggle-spotlight-search',
+        'csgo-event-fired',
+        'csgo-status-changed',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, listener);
@@ -107,6 +113,10 @@ contextBridge.exposeInMainWorld('electron', {
         'set-recording-mode',
         'valorant-start-monitor',
         'valorant-stop-monitor',
+        'csgo-start-monitor',
+        'csgo-stop-monitor',
+        'csgo-event-fired',
+        'csgo-status-changed',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeListener(channel, listener);

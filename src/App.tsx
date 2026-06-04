@@ -13,6 +13,7 @@ import GroupManager from './components/GroupManager';
 import GroupFilterBar from './components/GroupFilterBar';
 import SpotlightSearch from './components/SpotlightSearch';
 import ValorantPanel from './components/ValorantPanel';
+import CsgoPanel from './components/CsgoPanel';
 import { Cassette, Globe, Search } from './components/ModernIcons';
 import { copy, themeColor } from './ui/copy';
 
@@ -144,6 +145,10 @@ function App() {
     return localStorage.getItem('pickerPrefixKey') || '`';
   });
   const [valorantConnected, setValorantConnected] = useState(false);
+  const [csgoEnabled, setCsgoEnabled] = useState(() => {
+    return localStorage.getItem('csgoEnabled') === 'true';
+  });
+  const [csgoConnected, setCsgoConnected] = useState(false);
   const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string; hint?: string } | null>(null);
   const [safeLockEnabled, setSafeLockEnabled] = useState(() => localStorage.getItem('safeLockEnabled') === 'true');
   const [pinnedSounds, setPinnedSounds] = useState<string[]>(() => JSON.parse(localStorage.getItem('pinnedSounds') || '[]'));
@@ -410,6 +415,10 @@ function App() {
       setValorantConnected(status.connected);
     };
 
+    const handleCsgoStatus = (_event: any, status: { connected: boolean }) => {
+      setCsgoConnected(status.connected);
+    };
+
     let batchedEvents: ReturnType<typeof setTimeout> | null = null;
     let batchedChoices: Array<{ id: string; name: string }> = [];
     let batchedLabel = '';
@@ -482,10 +491,69 @@ function App() {
       }, 200);
     };
 
+    const handleCsgoEvent = (_event: any, payload: { event: string }) => {
+      const raw = localStorage.getItem('csgoBindings');
+      if (!raw) return;
+
+      let bindings: Record<string, string[]>;
+      try {
+        const parsed = JSON.parse(raw);
+        bindings = {};
+        for (const [ev, val] of Object.entries(parsed)) {
+          if (Array.isArray(val)) {
+            bindings[ev] = (val as string[]).filter(Boolean);
+          } else if (typeof val === 'string' && val) {
+            bindings[ev] = [val];
+          } else {
+            bindings[ev] = [];
+          }
+        }
+      } catch { return; }
+
+      const eventBindings = bindings[payload.event];
+      if (!eventBindings || eventBindings.length === 0) return;
+
+      let imported: Array<{ id: string; name: string }> = [];
+      try { imported = JSON.parse(localStorage.getItem('importedSounds') || '[]'); } catch {}
+      const allSnds = [...imported, ...sounds];
+
+      const choices = eventBindings
+        .map((id: string) => {
+          const s = allSnds.find(s => s.id === id);
+          return s ? { id: s.id, name: s.name } : null;
+        })
+        .filter((s): s is { id: string; name: string } => s !== null);
+
+      if (choices.length === 0) return;
+
+      const eventLabels: Record<string, string> = {
+        round_start: 'CS2 ROUND START',
+        round_end: 'CS2 ROUND END',
+        round_end_ct_win: 'CS2 CT WIN',
+        round_end_t_win: 'CS2 T WIN',
+        spike_planted: 'CS2 C4 PLANTED',
+        spike_defused: 'CS2 C4 DEFUSED',
+        spike_exploded: 'CS2 C4 EXPLODED',
+        match_start: 'CS2 MATCH START',
+        match_end: 'CS2 MATCH END',
+        freezetime_started: 'CS2 FREEZE TIME',
+        player_killed: 'CS2 KILL',
+        player_died: 'CS2 DEATH',
+      };
+      const label = eventLabels[payload.event] || 'CS2 ' + payload.event;
+
+      electron.ipcRenderer.send('valorant-show-picker', {
+        choices,
+        eventLabel: label,
+      });
+    };
+
     electron.ipcRenderer.on('shortcut-triggered', handleShortcut);
     electron.ipcRenderer.on('stop-shortcut-triggered', handleStopShortcut);
     electron.ipcRenderer.on('valorant-status-changed', handleValorantStatus);
     electron.ipcRenderer.on('valorant-event-fired', handleValorantEvent);
+    electron.ipcRenderer.on('csgo-event-fired', handleCsgoEvent);
+    electron.ipcRenderer.on('csgo-status-changed', handleCsgoStatus);
 
     return () => {
       listenersRegisteredRef.current = false;
@@ -493,6 +561,8 @@ function App() {
       electron.ipcRenderer.removeListener('stop-shortcut-triggered', handleStopShortcut);
       electron.ipcRenderer.removeListener('valorant-status-changed', handleValorantStatus);
       electron.ipcRenderer.removeListener('valorant-event-fired', handleValorantEvent);
+      electron.ipcRenderer.removeListener('csgo-event-fired', handleCsgoEvent);
+      electron.ipcRenderer.removeListener('csgo-status-changed', handleCsgoStatus);
     };
   }, []);
 
@@ -556,6 +626,20 @@ function App() {
   useEffect(() => {
     localStorage.setItem('valorantEnabled', String(valorantEnabled));
   }, [valorantEnabled]);
+
+  useEffect(() => {
+    const electron = (window as any).electron;
+    if (!electron?.ipcRenderer) return;
+    if (csgoEnabled) {
+      electron.ipcRenderer.send('csgo-start-monitor');
+    } else {
+      electron.ipcRenderer.send('csgo-stop-monitor');
+    }
+  }, [csgoEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('csgoEnabled', String(csgoEnabled));
+  }, [csgoEnabled]);
 
   useEffect(() => {
     localStorage.setItem('pickerPrefixKey', pickerPrefixKey);
@@ -1354,6 +1438,9 @@ function App() {
         onValorantToggle={() => setRightPanel(prev => (prev === 'valorant' ? 'none' : 'valorant'))}
         showValorant={rightPanel === 'valorant'}
         valorantConnected={valorantConnected}
+        onCsgoToggle={() => setRightPanel(prev => (prev === 'csgo' ? 'none' : 'csgo'))}
+        showCsgo={rightPanel === 'csgo'}
+        csgoConnected={csgoConnected}
         teamMode={teamMode}
         onTeamToggle={() => setTeamMode(prev => !prev)}
       />
@@ -1467,6 +1554,8 @@ function App() {
           <aside className="w-auto min-w-[280px] max-w-[50%] border-l-2 border-border-default bg-bg-secondary/70 flex">
             {rightPanel === 'valorant' ? (
               <ValorantPanel onClose={() => setRightPanel('none')} />
+            ) : rightPanel === 'csgo' ? (
+              <CsgoPanel onClose={() => setRightPanel('none')} csgoEnabled={csgoEnabled} onCsgoEnabledChange={setCsgoEnabled} />
             ) : (
               <OnlineSoundBrowser
                 onImport={handleImportFromPath}

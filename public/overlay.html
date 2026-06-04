@@ -55,7 +55,7 @@
 
   #picker {
     position: fixed;
-    bottom: 62px;
+    bottom: 102px;
     left: 12px;
     z-index: 100;
     border: 2px solid #ff2ea0;
@@ -203,6 +203,12 @@
       electron.ipcRenderer.on('valorant-picker-hide', function() {
         var picker = document.getElementById('picker');
         if (picker) picker.style.display = 'none';
+      });
+
+      // CS2 event handling — forward to the same picker UI
+      electron.ipcRenderer.on('csgo-event-fired', function(_, data) {
+        // CS2 events can also trigger the picker; forwarded via valorant-show-picker IPC
+        // This channel acts as a relay bridge
       });
     })();
   </script>

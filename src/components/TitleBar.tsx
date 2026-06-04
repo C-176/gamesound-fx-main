@@ -1,4 +1,4 @@
-import { RetroTV, Satellite, UFO } from './ModernIcons';
+import { RetroTV, Satellite, Crosshair, UFO } from './ModernIcons';
 import { copy, themeColor } from '../ui/copy';
 
 interface TitleBarProps {
@@ -6,11 +6,14 @@ interface TitleBarProps {
   onValorantToggle?: () => void;
   showValorant?: boolean;
   valorantConnected?: boolean;
+  onCsgoToggle?: () => void;
+  showCsgo?: boolean;
+  csgoConnected?: boolean;
   teamMode?: boolean;
   onTeamToggle?: () => void;
 }
 
-function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantConnected, teamMode, onTeamToggle }: TitleBarProps) {
+function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantConnected, onCsgoToggle, showCsgo, csgoConnected, teamMode, onTeamToggle }: TitleBarProps) {
   const minimize = () => {
     (window as any).electron?.ipcRenderer?.send('minimize-window');
   };
@@ -48,6 +51,23 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
               {showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent ring-1 ring-bg-primary" />}
               {valorantConnected && !showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
               <Satellite size={13} color={showValorant ? themeColor.accent : valorantConnected ? themeColor.green : themeColor.muted} />
+            </button>
+          )}
+          {onCsgoToggle && (
+            <button
+              onClick={onCsgoToggle}
+              className={`win-btn rounded-lg relative ${
+                showCsgo
+                  ? 'border-accent-gold bg-accent-gold/20 text-accent-gold shadow-[0_0_10px_rgba(255,200,0,0.5)]'
+                  : csgoConnected
+                    ? 'border-accent-green bg-accent-green/15 text-accent-green shadow-[0_0_8px_rgba(0,255,136,0.35)]'
+                    : 'border-border-default text-text-muted opacity-50'
+              }`}
+              title={`CS2${csgoConnected ? ` · ${copy.valorant.connected}` : ''}`}
+            >
+              {showCsgo && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-gold ring-1 ring-bg-primary" />}
+              {csgoConnected && !showCsgo && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
+              <Crosshair size={13} color={showCsgo ? themeColor.gold : csgoConnected ? themeColor.green : themeColor.muted} />
             </button>
           )}
           {onTeamToggle && (
