@@ -1034,6 +1034,11 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { bypassCSP: true, supportFetchAPI: true, standard: true, secure: true } },
 ]);
 
+// Top-level IPC: available before app.whenReady() (needed by preload)
+ipcMain.on('get-app-version', () => {
+  return app.getVersion();
+});
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); } else {
 app.on('second-instance', () => {
@@ -1239,10 +1244,6 @@ app.whenReady().then(() => {
 
   ipcMain.on('minimize-window', () => {
     mainWindow?.minimize();
-  });
-
-  ipcMain.on('get-app-version', () => {
-    return app.getVersion();
   });
 
   ipcMain.on('close-window', () => {
