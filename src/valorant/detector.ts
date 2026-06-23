@@ -81,11 +81,7 @@ export class ValorantDetector {
       // Detect round end events
       if (this.prevScore.our >= 0) {
         if (ourScore + enemyScore > this.prevScore.our + this.prevScore.enemy) {
-          if (ourScore > this.prevScore.our) {
-            this.fireEvent('round_end_win', match);
-          } else {
-            this.fireEvent('round_end_lose', match);
-          }
+          this.fireEvent('round_end', match);
         }
       }
 

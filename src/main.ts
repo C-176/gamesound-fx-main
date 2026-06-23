@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, session, nativeImage, globalShortcut } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
@@ -212,7 +213,11 @@ let keybd_event_fn: ((vk: number, scan: number, flags: number, extra: number) =>
 let teamKeyVK = 0x56; // default V
 let valorantHwnd = 0; // cached VALORANT window handle
 let findValorantWindow: (() => number) | null = null;
+let csgoHwnd = 0; // cached CS2 window handle
+let sendWindowKey: ((hwnd: number, vk: number, keyUp: boolean) => boolean) | null = null;
+let findCsgoWindow: (() => number) | null = null;
 let sendInputScanCode: ((scanCode: number, keyUp: boolean) => boolean) | null = null;
+let sendInputVK: ((vk: number, keyUp: boolean) => boolean) | null = null;
 let getForegroundWindowFn: (() => number) | null = null;
 let setForegroundWindowFn: ((hwnd: number) => boolean) | null = null;
 let attachThreadInputFn: ((current: number, target: number, attach: boolean) => boolean) | null = null;
@@ -242,6 +247,14 @@ try {
   const getClassNameA = user32.func('GetClassNameA', 'int32', ['int32', 'string', 'int32']);
   const EnumWindowsCB = koffi.proto('EnumWindowsCB', 'bool', ['int32', 'int32']);
   const enumWindows = user32.func('EnumWindows', 'bool', [koffi.pointer(EnumWindowsCB), 'int32']);
+  // PostMessageW / SendMessageW for direct window message injection
+  // WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101
+  const WM_KEYDOWN = 0x0100;
+  const WM_KEYUP = 0x0101;
+  const GWL_WNDPROC = -4;
+  const GWL_USERDATA = -23;
+  const postMessageW = user32.func('PostMessageW', 'bool', ['int32', 'uint32', 'uint32', 'uint32']);
+  const sendMessageW = user32.func('SendMessageW', 'uint32', ['int32', 'uint32', 'uint32', 'uint32']);
   findValorantWindow = (): number => {
     // Quick exact title match first (ANSI)
     for (const title of VALORANT_WINDOW_TITLES) {
@@ -275,17 +288,46 @@ try {
     else debugLog('[find] no VALORANT window found');
     return foundHwnd;
   };
-  // keybd_event with scan codes (Raw Input compatible via KEYEVENTF_SCANCODE)
-  sendInputScanCode = (scanCode: number, keyUp: boolean): boolean => {
+  // CS2 window finder
+  const CS2_WINDOW_TITLES = ['Counter-Strike 2', 'Counter-Strike', 'CS2', 'csgo.exe'];
+  findCsgoWindow = (): number => {
+    let foundHwnd = 0;
     try {
-      keybd_event_fn!(0, scanCode, 0x0008 | (keyUp ? 0x0002 : 0), 0);
-      debugLog('[team] keybd_event scanCode=' + scanCode + ' keyUp=' + keyUp);
-      return true;
-    } catch (e) { debugLog('[team] keybd_event scanCode error: ' + String(e)); return false; }
+      enumWindows((hwnd: number) => {
+        try {
+          const titleArr = new Uint16Array(512);
+          const len = getWindowTextW(hwnd, titleArr, 511);
+          const title = len > 0 ? Buffer.from(titleArr.buffer, 0, len * 2).toString('utf-16le') : '';
+          if (title.includes('Counter-Strike') || title.includes('CS2') || title.includes('csgo')) {
+            debugLog('[find-csgo] candidate: hwnd=' + hwnd + ' title="' + title + '"');
+            foundHwnd = hwnd;
+          }
+        } catch {}
+        return true;
+      }, 0);
+    } catch (e) { debugLog('[find-csgo] enumWindows error: ' + String(e)); }
+    if (foundHwnd) debugLog('[find-csgo] selected hwnd=' + foundHwnd);
+    else debugLog('[find-csgo] no CS2 window found');
+    return foundHwnd;
   };
-  // 初始缓存 VALORANT 窗口句柄
+  // Send WM_KEYDOWN/WM_KEYUP directly to a target window
+  // Bypasses game keyboard filters — works even when process doesn't have focus
+  sendWindowKey = (targetHwnd: number, vk: number, keyUp: boolean) => {
+    if (!targetHwnd || !postMessageW) {
+      debugLog('[team] sendWindowKey: invalid hwnd or no PostMessage');
+      return false;
+    }
+    const wParam = vk; // VK code in wParam
+    const lParam = 0x00010001; // repeat=1, scan=0x01, extended=0, context=0, prev=1
+    const msg = keyUp ? WM_KEYUP : WM_KEYDOWN;
+    const ok = postMessageW(targetHwnd, msg, wParam, lParam);
+    debugLog('[team] PostMessage ' + (keyUp ? 'WM_KEYUP' : 'WM_KEYDOWN') + ' vk=0x' + vk.toString(16) + ' hwnd=' + targetHwnd + ' result=' + ok);
+    return ok;
+  };
+  // 初始缓存 VALORANT + CS2 窗口句柄
   valorantHwnd = findValorantWindow!();
-  debugLog('koffi loaded: GetAsyncKeyState + keybd_event + SendInput + PostMessage');
+  csgoHwnd = findCsgoWindow!();
+  debugLog('koffi loaded: GetAsyncKeyState + keybd_event');
 } catch (e: any) {
   debugLog('koffi load FAILED: ' + (e?.message || String(e)));
 }
@@ -1125,6 +1167,10 @@ app.whenReady().then(() => {
     console.log('[GameSound FX] globalShortcut Alt+Space 注册失败:', e);
   }
 
+  // Enable ValorantLogDetector debug logging
+  (global as any).__GSFX_USER_DATA_PATH__ = app.getPath('userData');
+  debugLog('[Init] Valorant detector created, waiting for valorant-start-monitor IPC');
+
   valorantDetector = new ValorantLogDetector(
     (payload: ValorantEventPayload) => {
       mainWindow?.webContents.send('valorant-event-fired', payload);
@@ -1147,12 +1193,82 @@ app.whenReady().then(() => {
     }
   );
 
+  // ─── Auto Update ───
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowDowngrade = false;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[GameSound FX] Checking for updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[GameSound FX] Update available: ${info.version}`);
+    mainWindow?.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes as string | undefined,
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[GameSound FX] No new version.');
+    mainWindow?.webContents.send('update-check-done', null);
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[GameSound FX] Download progress: ${progress.percent.toFixed(1)}%`);
+    mainWindow?.webContents.send('download-progress', {
+      percent: progress.percent,
+      bytesPerSecond: progress.bytesPerSecond,
+      total: progress.total,
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[GameSound FX] Update downloaded: ${info.version}`);
+    mainWindow?.webContents.send('update-downloaded', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[GameSound FX] Update error:', err);
+    mainWindow?.webContents.send('update-error', { message: err.message || String(err) });
+  });
+
   ipcMain.on('minimize-window', () => {
     mainWindow?.minimize();
   });
 
+  ipcMain.on('get-app-version', () => {
+    return app.getVersion();
+  });
+
   ipcMain.on('close-window', () => {
     app.quit();
+  });
+
+  ipcMain.handle('check-for-update', async () => {
+    try {
+      const updateInfo = await autoUpdater.checkForUpdates();
+      return updateInfo?.updateInfo || null;
+    } catch (err: any) {
+      console.error('[GameSound FX] Check for update failed:', err);
+      return { error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.on('start-download', () => {
+    console.log('[GameSound FX] Starting download...');
+    autoUpdater.downloadUpdate().catch(err => {
+      console.error('[GameSound FX] Download failed:', err);
+    });
+  });
+
+  ipcMain.on('quit-and-install', () => {
+    console.log('[GameSound FX] Quitting and installing update...');
+    autoUpdater.quitAndInstall(true, true);
   });
 
   ipcMain.on('close-spotlight', () => {
@@ -1452,11 +1568,12 @@ app.whenReady().then(() => {
 
   ipcMain.on('hold-team-key', async () => {
     const keyName = VK_TO_NAME[teamKeyVK] || 'V';
-    const scanCode = KEY_NAME_TO_SCANCODE[keyName] || 0;
-    // Always get fresh window handle — don't rely on cached valorantHwnd
-    let targetHwnd = findValorantWindow ? findValorantWindow() : 0;
+    debugLog('[team] hold: keyName=' + keyName + ' teamKeyVK=0x' + teamKeyVK.toString(16));
+    // 优先查找 CS2 窗口，其次 VALORANT 窗口
+    let targetHwnd = findCsgoWindow ? findCsgoWindow() : 0;
+    if (!targetHwnd) targetHwnd = findValorantWindow ? findValorantWindow() : 0;
     if (!targetHwnd) targetHwnd = valorantHwnd;
-    debugLog('[team] hold: targetHwnd=' + targetHwnd + ' key=' + keyName);
+    debugLog('[team] hold: targetHwnd=' + targetHwnd);
     if (targetHwnd && getForegroundWindowFn) {
       const prevHwnd = getForegroundWindowFn();
       debugLog('[team] prevHwnd=' + prevHwnd);
@@ -1468,16 +1585,32 @@ app.whenReady().then(() => {
         debugLog('[team] after switch nowHwnd=' + nowHwnd);
       }
     }
-    // 2) 发送 V 键 — 此时 VALORANT 是前台，Raw Input 应能接收
-    if (sendInputScanCode && scanCode) sendInputScanCode(scanCode, false);
-    if (keybd_event_fn && teamKeyVK) keybd_event_fn(teamKeyVK, 0, 0, 0);
+    // Method 1: PostMessageW — inject WM_KEYDOWN directly to game window
+    if (targetHwnd && sendWindowKey) {
+      sendWindowKey(targetHwnd, teamKeyVK, false);
+    }
+    // Method 2: keybd_event fallback
+    if (keybd_event_fn && teamKeyVK) {
+      keybd_event_fn(teamKeyVK, 0, 0, 0);
+      debugLog('[team] keybd_event DOWN vk=0x' + teamKeyVK.toString(16));
+    }
   });
 
   ipcMain.on('release-team-key', () => {
-    const keyName = VK_TO_NAME[teamKeyVK] || 'V';
-    const scanCode = KEY_NAME_TO_SCANCODE[keyName] || 0;
-    if (keybd_event_fn && teamKeyVK) keybd_event_fn(teamKeyVK, 0, 0x0002, 0);
-    if (sendInputScanCode && scanCode) sendInputScanCode(scanCode, true);
+    // Find the active game window (CS2 or VALORANT)
+    let targetHwnd = findCsgoWindow ? findCsgoWindow() : 0;
+    if (!targetHwnd) targetHwnd = findValorantWindow ? findValorantWindow() : 0;
+    if (!targetHwnd) targetHwnd = valorantHwnd;
+    // Method 1: PostMessageW to game window
+    if (targetHwnd && sendWindowKey) {
+      sendWindowKey(targetHwnd, teamKeyVK, true);
+      debugLog('[team] release: PostMessage WM_KEYUP hwnd=' + targetHwnd);
+    }
+    // Method 2: keybd_event fallback
+    if (keybd_event_fn && teamKeyVK) {
+      keybd_event_fn(teamKeyVK, 0, 0x0002, 0);
+      debugLog('[team] keybd_event UP vk=0x' + teamKeyVK.toString(16));
+    }
   });
 
   ipcMain.handle('read-imported-sound', async (_event, fileName: string) => {
@@ -1546,7 +1679,9 @@ app.whenReady().then(() => {
   });
 
   ipcMain.on('valorant-start-monitor', () => {
+    debugLog('[Valorant] start-monitor IPC received, detector=' + (valorantDetector ? 'exists' : 'null'));
     valorantDetector?.start();
+    debugLog('[Valorant] start() called');
   });
 
   ipcMain.on('valorant-stop-monitor', () => {
@@ -1555,6 +1690,8 @@ app.whenReady().then(() => {
 
   // ─── CS2 IPC handlers ───
   ipcMain.on('csgo-start-monitor', () => {
+    // 刷新 CS2 窗口句柄
+    if (findCsgoWindow) { csgoHwnd = findCsgoWindow(); debugLog('[csgo] refresh hwnd=' + csgoHwnd); }
     csgoDetector?.start();
   });
 

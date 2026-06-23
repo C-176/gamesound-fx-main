@@ -121,6 +121,33 @@ export const copy = {
     bind: '绑定',
     pickerTitle: (event: string) => `添加音效 — ${event}`,
   },
+  csgo: {
+    bindings: 'CS2 事件绑定',
+  },
+  update: {
+    checking: '正在检查更新…',
+    upToDate: '当前已是最新版本',
+    available: (v: string) => `发现新版本 ${v}`,
+    downloadProgress: (p: number) => `正在下载更新… ${p.toFixed(0)}%`,
+    downloaded: '更新已下载完成',
+    installNow: '立即安装',
+    installHint: '重启后将自动安装新版本',
+    checkUpdate: '检查更新',
+    currentVersion: '当前版本',
+    noUpdateYet: '暂无更新说明',
+    error: '检查更新失败',
+    errorHint: '请检查网络连接后重试',
+  },
+  about: {
+    title: '关于',
+    version: '版本号',
+    author: '作者',
+    project: '开源项目',
+    checkUpdate: '检查更新',
+    updateChecking: '正在检查…',
+    updateAvailable: (v: string) => `新版本 ${v}`,
+    upToDate: '已是最新版',
+  },
 } as const;
 
 export const themeColor = {

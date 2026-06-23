@@ -23,6 +23,8 @@ interface ElectronAPI {
   ipcRenderer: ElectronIPC;
   /** AudioContext singleton (shared across Howler) */
   HowlerCtx?: AudioContext;
+  /** Current app version (read from package.json) */
+  appVersion?: string;
 }
 
 interface Window {

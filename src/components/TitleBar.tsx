@@ -3,17 +3,41 @@ import { copy, themeColor } from '../ui/copy';
 
 interface TitleBarProps {
   onSettingsClick: () => void;
-  onValorantToggle?: () => void;
-  showValorant?: boolean;
-  valorantConnected?: boolean;
-  onCsgoToggle?: () => void;
-  showCsgo?: boolean;
-  csgoConnected?: boolean;
-  teamMode?: boolean;
-  onTeamToggle?: () => void;
+  valorantEnabled: boolean;
+  onValorantMonitorToggle: () => void;
+  valorantConnected: boolean;
+  showValorant: boolean;
+  onValorantPanelToggle: () => void;
+  csgoEnabled: boolean;
+  onCsgoMonitorToggle: () => void;
+  csgoConnected: boolean;
+  showCsgo: boolean;
+  onCsgoPanelToggle: () => void;
+  teamMode: boolean;
+  onTeamToggle: () => void;
+  version?: string;
+  onUpdateCheck?: () => void;
+  updateBadge?: 'none' | 'new-version' | 'checking';
 }
 
-function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantConnected, onCsgoToggle, showCsgo, csgoConnected, teamMode, onTeamToggle }: TitleBarProps) {
+function TitleBar({
+  onSettingsClick,
+  valorantEnabled,
+  onValorantMonitorToggle,
+  valorantConnected,
+  showValorant,
+  onValorantPanelToggle,
+  csgoEnabled,
+  onCsgoMonitorToggle,
+  csgoConnected,
+  showCsgo,
+  onCsgoPanelToggle,
+  teamMode,
+  onTeamToggle,
+  version,
+  onUpdateCheck,
+  updateBadge,
+}: TitleBarProps) {
   const minimize = () => {
     (window as any).electron?.ipcRenderer?.send('minimize-window');
   };
@@ -21,6 +45,8 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
   const close = () => {
     (window as any).electron?.ipcRenderer?.send('close-window');
   };
+
+  const valorantMonitorIndicator = valorantEnabled && valorantConnected;
 
   return (
     <div className="[-webkit-app-region:drag] shrink-0 bg-bg-secondary/95 border-b border-border-default">
@@ -36,38 +62,76 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
         </div>
 
         <div className="[-webkit-app-region:no-drag] flex items-center gap-1">
-          {onValorantToggle && (
+          {/* Valorant Monitor toggle */}
+          <button
+            onClick={onValorantMonitorToggle}
+            className={`win-btn rounded-lg relative ${
+              valorantEnabled
+                ? 'border-accent bg-accent/20 text-accent shadow-[0_0_10px_rgba(255,94,156,0.5)]'
+                : valorantConnected
+                  ? 'border-accent/70 bg-accent/10 text-accent/80'
+                  : 'border-border-default text-text-muted opacity-50'
+            }`}
+            title={
+              valorantEnabled
+                ? `${copy.valorant.title} · 监控已开启${valorantConnected ? ` · ${copy.valorant.connected}` : ' · 未检测'}`
+                : valorantConnected
+                  ? `${copy.valorant.title} · 点击开启监控${valorantConnected ? ` · ${copy.valorant.connected}` : ''}`
+                  : `${copy.valorant.title} · 未检测`
+            }
+          >
+            {valorantMonitorIndicator && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
+            <Satellite size={13} color={valorantEnabled ? themeColor.accent : valorantConnected ? themeColor.accent : themeColor.muted} />
+          </button>
+          {/* Valorant Panel toggle */}
+          {valorantEnabled && (
             <button
-              onClick={onValorantToggle}
+              onClick={onValorantPanelToggle}
               className={`win-btn rounded-lg relative ${
                 showValorant
                   ? 'border-accent bg-accent/20 text-accent shadow-[0_0_10px_rgba(255,94,156,0.5)]'
-                  : valorantConnected
-                    ? 'border-accent-green bg-accent-green/15 text-accent-green shadow-[0_0_8px_rgba(0,255,136,0.35)]'
-                    : 'border-border-default text-text-muted opacity-50'
+                  : 'border-border-default text-text-muted opacity-80'
               }`}
-              title={`${copy.valorant.title}${valorantConnected ? ` · ${copy.valorant.connected}` : ''}`}
+              title={`${copy.valorant.bindings}${showValorant ? ' · 面板已展开' : ''}`}
             >
               {showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent ring-1 ring-bg-primary" />}
-              {valorantConnected && !showValorant && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
-              <Satellite size={13} color={showValorant ? themeColor.accent : valorantConnected ? themeColor.green : themeColor.muted} />
+              <Satellite size={13} color={showValorant ? themeColor.accent : themeColor.muted} />
             </button>
           )}
-          {onCsgoToggle && (
+          {/* CS2 Monitor toggle */}
+          <button
+            onClick={onCsgoMonitorToggle}
+            className={`win-btn rounded-lg relative ${
+              csgoEnabled
+                ? 'border-accent-gold bg-accent-gold/20 text-accent-gold shadow-[0_0_10px_rgba(255,200,0,0.5)]'
+                : csgoConnected
+                  ? 'border-accent-gold/70 bg-accent-gold/10 text-accent-gold/80'
+                  : 'border-border-default text-text-muted opacity-50'
+            }`}
+            title={
+              csgoEnabled
+                ? `CS2 · 监控已开启${csgoConnected ? ` · ${copy.valorant.connected}` : ' · 未检测'}`
+                : csgoConnected
+                  ? `CS2 · 点击开启监控${csgoConnected ? ` · ${copy.valorant.connected}` : ''}`
+                  : `CS2 · 未检测`
+            }
+          >
+            {csgoEnabled && csgoConnected && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
+            <Crosshair size={13} color={csgoEnabled ? themeColor.gold : csgoConnected ? themeColor.gold : themeColor.muted} />
+          </button>
+          {/* CS2 Panel toggle */}
+          {csgoEnabled && (
             <button
-              onClick={onCsgoToggle}
+              onClick={onCsgoPanelToggle}
               className={`win-btn rounded-lg relative ${
                 showCsgo
                   ? 'border-accent-gold bg-accent-gold/20 text-accent-gold shadow-[0_0_10px_rgba(255,200,0,0.5)]'
-                  : csgoConnected
-                    ? 'border-accent-green bg-accent-green/15 text-accent-green shadow-[0_0_8px_rgba(0,255,136,0.35)]'
-                    : 'border-border-default text-text-muted opacity-50'
+                  : 'border-border-default text-text-muted opacity-80'
               }`}
-              title={`CS2${csgoConnected ? ` · ${copy.valorant.connected}` : ''}`}
+              title={`${copy.csgo.bindings}${showCsgo ? ' · 面板已展开' : ''}`}
             >
               {showCsgo && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-gold ring-1 ring-bg-primary" />}
-              {csgoConnected && !showCsgo && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green ring-1 ring-bg-primary" />}
-              <Crosshair size={13} color={showCsgo ? themeColor.gold : csgoConnected ? themeColor.green : themeColor.muted} />
+              <Crosshair size={13} color={showCsgo ? themeColor.gold : themeColor.muted} />
             </button>
           )}
           {onTeamToggle && (
@@ -82,6 +146,25 @@ function TitleBar({ onSettingsClick, onValorantToggle, showValorant, valorantCon
             >
               {teamMode && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-pink ring-1 ring-bg-primary" />}
               <UFO size={13} color={teamMode ? themeColor.pink : themeColor.muted} />
+            </button>
+          )}
+          {/* Version badge */}
+          {onUpdateCheck && version && (
+            <button
+              onClick={onUpdateCheck}
+              className={`win-btn rounded-lg text-[11px] font-mono tabular-nums px-1.5 py-0.5 min-w-[48px] text-center relative ${
+                updateBadge === 'new-version'
+                  ? 'border-accent-gold bg-accent-gold/20 text-accent-gold'
+                  : updateBadge === 'checking'
+                    ? 'border-border-default text-text-secondary/60'
+                    : 'border-border-default text-text-muted opacity-70'
+              }`}
+              title={updateBadge === 'new-version' ? '发现新版本' : updateBadge === 'checking' ? '正在检查更新…' : '点击检查更新'}
+            >
+              <span className="text-[9px] opacity-60 mr-0.5">v</span>{version}
+              {updateBadge === 'new-version' && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-accent-gold" />
+              )}
             </button>
           )}
           <span className="w-px h-5 bg-border-bright mx-0.5" aria-hidden />

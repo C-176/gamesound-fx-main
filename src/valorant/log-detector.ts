@@ -3,6 +3,15 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import type { ValorantEvent, ValorantStatus, ValorantEventPayload } from './types';
 
+// File-based debug log for packaged app diagnostics
+const debugLog = (msg: string) => {
+  try {
+    const userDataPath = (global as any).__GSFX_USER_DATA_PATH__ || process.cwd();
+    const logPath = path.join(userDataPath, 'gsfx-debug.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] [ValorantLogDetector] ${msg}\n`);
+  } catch (_e) {}
+};
+
 type EventCallback = (payload: ValorantEventPayload) => void;
 type StatusCallback = (status: ValorantStatus) => void;
 
@@ -137,6 +146,7 @@ export class ValorantLogDetector {
       this.lastDiscoverAttempt = now;
       await this.discoverLogFile();
       if (!this.logFilePath) {
+        debugLog(`discover failed: no log file found`);
         this.discoverFailCount++;
         this.discoverBackoffMs = Math.min(60000, 5000 * Math.pow(2, Math.min(this.discoverFailCount, 4)));
         return;
@@ -168,12 +178,12 @@ export class ValorantLogDetector {
         return;
       }
 
-      // fs.watch 已激活时由事件驱动读取，轮询只需检查断连，不做文件 I/O
-      if (this.gameConnected && !this.watchActive) {
+      // fs.watch 已激活时由事件驱动读取，轮询仍做兜底以防 fs.watch 漏发事件
+      if (this.gameConnected) {
         this.readNewLines();
       }
     } catch (e) {
-      console.log('[ValorantLogDetector] tick error:', e);
+      debugLog(`tick error: ${e}`);
       if (this.gameConnected) this.closeConnection();
     }
   }
@@ -189,6 +199,7 @@ export class ValorantLogDetector {
   }
 
   private async discoverLogFile() {
+    debugLog(`discoverLogFile: start`);
     // Try registry first
     const regPath = await this.queryRegistry('HKLM\\SOFTWARE\\WOW6432Node\\Tencent\\WeGame', 'InstallPath')
       || await this.queryRegistry('HKCU\\SOFTWARE\\Tencent\\WeGame', 'InstallPath');
@@ -205,6 +216,7 @@ export class ValorantLogDetector {
     }
 
     console.log('[ValorantLogDetector] No log file found in any path');
+    debugLog('discoverLogFile: No log file found in any path');
   }
 
   private findLogInDir(dir: string): boolean {
@@ -372,10 +384,13 @@ export class ValorantLogDetector {
           continue;
         }
       }
-    } catch {}
+    } catch (e) {
+      debugLog(`readNewLines error: ${e}`);
+    }
   }
 
   private fire(event: ValorantEvent, scores?: { ourScore: number; enemyScore: number }) {
+    debugLog(`fire event: ${event} round=${this.currentRound} map=${this.currentMap} agent=${this.currentAgent}`);
     this.onEvent({
       event,
       match: {

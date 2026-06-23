@@ -131,7 +131,7 @@ function App() {
   });
   const [isMuted, setIsMuted] = useState(false);
   const prevVolumeRef = useRef(0.8);
-  const [rightPanel, setRightPanel] = useState<'none' | 'valorant' | 'sniffer'>('none');
+  const [rightPanel, setRightPanel] = useState<'none' | 'valorant' | 'sniffer' | 'csgo'>('none');
   const [valorantEnabled, setValorantEnabled] = useState(() => {
     return localStorage.getItem('valorantEnabled') === 'true';
   });
@@ -150,6 +150,22 @@ function App() {
   });
   const [csgoConnected, setCsgoConnected] = useState(false);
   const [uxNotice, setUxNotice] = useState<{ type: 'error' | 'success'; text: string; hint?: string } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'downloaded' | 'error';
+    version?: string;
+    progress?: number;
+    releaseNotes?: string;
+    error?: string;
+  }>({ status: 'idle' });
+  const updateInfoRef = useRef(updateInfo);
+  useEffect(() => { updateInfoRef.current = updateInfo; }, [updateInfo]);
+  const [appVersion] = useState(() => {
+    try {
+      return (window as any).electron?.appVersion || '1.0.0';
+    } catch {
+      return '1.0.0';
+    }
+  });
   const [safeLockEnabled, setSafeLockEnabled] = useState(() => localStorage.getItem('safeLockEnabled') === 'true');
   const [pinnedSounds, setPinnedSounds] = useState<string[]>(() => JSON.parse(localStorage.getItem('pinnedSounds') || '[]'));
   const [recentPlayed, setRecentPlayed] = useState<string[]>(() => JSON.parse(localStorage.getItem('recentPlayed') || '[]'));
@@ -461,13 +477,12 @@ function App() {
 
       if (choices.length === 0) return;
 
-      // Batch: merge rapid events (e.g. round_end_win + round_end_lose)
+      // Batch: merge rapid events within 200ms window
       const eventLabels: Record<string, string> = {
+        match_start: 'MATCH START',
         round_start: 'ROUND START',
         round_end: 'ROUND END',
         spike_planted: 'SPIKE PLANTED',
-        spike_defused: 'SPIKE DEFUSED',
-        spike_exploded: 'SPIKE EXPLODED',
       };
       const label = eventLabels[payload.event] || payload.event;
 
@@ -555,6 +570,45 @@ function App() {
     electron.ipcRenderer.on('csgo-event-fired', handleCsgoEvent);
     electron.ipcRenderer.on('csgo-status-changed', handleCsgoStatus);
 
+    // ─── Update listeners ───
+    const handleUpdateAvailable = (_event: any, info: { version: string; releaseNotes?: string; releaseUrl?: string }) => {
+      setUpdateInfo(prev => {
+        if (prev.status === 'checking') {
+          showUxNotice('success', copy.update.available(info.version), '可在设置面板中下载更新');
+        }
+        return { ...prev, status: 'available', version: info.version, releaseNotes: info.releaseNotes };
+      });
+    };
+
+    const handleDownloadProgress = (_event: any, progress: { percent: number; bytesPerSecond: number; total: number }) => {
+      setUpdateInfo(prev => ({
+        ...prev,
+        status: 'downloading',
+        progress: progress.percent,
+      }));
+    };
+
+    const handleUpdateDownloaded = (_event: any, info: { version: string; releaseNotes?: string }) => {
+      setUpdateInfo({ status: 'downloaded', version: info.version, releaseNotes: info.releaseNotes });
+      showUxNotice('success', copy.update.downloaded, `${copy.update.installNow}：${copy.update.installHint}`);
+    };
+
+    const handleUpdateError = (_event: any, info: { message: string }) => {
+      setUpdateInfo({ status: 'error', error: info.message });
+      showUxNotice('error', copy.update.error, copy.update.errorHint);
+    };
+
+    const handleUpdateCheckDone = () => {
+      setUpdateInfo(prev => ({ ...prev, status: 'up-to-date' }));
+      showUxNotice('success', copy.update.upToDate);
+    };
+
+    electron.ipcRenderer.on('update-available', handleUpdateAvailable);
+    electron.ipcRenderer.on('download-progress', handleDownloadProgress);
+    electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded);
+    electron.ipcRenderer.on('update-error', handleUpdateError);
+    electron.ipcRenderer.on('update-check-done', handleUpdateCheckDone);
+
     return () => {
       listenersRegisteredRef.current = false;
       electron.ipcRenderer.removeListener('shortcut-triggered', handleShortcut);
@@ -563,6 +617,11 @@ function App() {
       electron.ipcRenderer.removeListener('valorant-event-fired', handleValorantEvent);
       electron.ipcRenderer.removeListener('csgo-event-fired', handleCsgoEvent);
       electron.ipcRenderer.removeListener('csgo-status-changed', handleCsgoStatus);
+      electron.ipcRenderer.removeListener('update-available', handleUpdateAvailable);
+      electron.ipcRenderer.removeListener('download-progress', handleDownloadProgress);
+      electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded);
+      electron.ipcRenderer.removeListener('update-error', handleUpdateError);
+      electron.ipcRenderer.removeListener('update-check-done', handleUpdateCheckDone);
     };
   }, []);
 
@@ -1416,6 +1475,28 @@ function App() {
     showUxNotice('success', '已应用快捷键健康修复', '已将高风险单键尽量替换为组合键');
   }, [guardMutation, shortcuts, stopShortcut, showUxNotice]);
 
+  // ─── Update handlers ───
+  const handleCheckUpdate = useCallback(async () => {
+    setUpdateInfo(prev => ({ ...prev, status: 'checking' }));
+    try {
+      const result = await (window as any).electron?.ipcRenderer?.invoke('check-for-update');
+      if (result?.error) {
+        setUpdateInfo({ status: 'error', error: result.error });
+      }
+      // Result is handled via IPC events (update-available / update-check-done)
+    } catch {
+      setUpdateInfo(prev => ({ ...prev, status: 'error' }));
+    }
+  }, []);
+
+  const handleStartDownload = useCallback(() => {
+    (window as any).electron?.ipcRenderer?.send('start-download');
+  }, []);
+
+  const handleQuitAndInstall = useCallback(() => {
+    (window as any).electron?.ipcRenderer?.send('quit-and-install');
+  }, []);
+
   // Spotlight mode: render only the search overlay
   if (new URLSearchParams(window.location.search).get('spotlight') === '1') {
     return (
@@ -1435,14 +1516,21 @@ function App() {
     <div className="app-shell relative w-full h-full border border-accent/60 flex flex-col overflow-hidden">
       <TitleBar
         onSettingsClick={() => setShowSettings(true)}
-        onValorantToggle={() => setRightPanel(prev => (prev === 'valorant' ? 'none' : 'valorant'))}
-        showValorant={rightPanel === 'valorant'}
+        valorantEnabled={valorantEnabled}
+        onValorantMonitorToggle={() => setValorantEnabled(prev => !prev)}
         valorantConnected={valorantConnected}
-        onCsgoToggle={() => setRightPanel(prev => (prev === 'csgo' ? 'none' : 'csgo'))}
-        showCsgo={rightPanel === 'csgo'}
+        showValorant={rightPanel === 'valorant'}
+        onValorantPanelToggle={() => setRightPanel(prev => (prev === 'valorant' ? 'none' : 'valorant'))}
+        csgoEnabled={csgoEnabled}
+        onCsgoMonitorToggle={() => setCsgoEnabled(prev => !prev)}
         csgoConnected={csgoConnected}
+        showCsgo={rightPanel === 'csgo'}
+        onCsgoPanelToggle={() => setRightPanel(prev => (prev === 'csgo' ? 'none' : 'csgo'))}
         teamMode={teamMode}
         onTeamToggle={() => setTeamMode(prev => !prev)}
+        version={appVersion}
+        onUpdateCheck={handleCheckUpdate}
+        updateBadge={updateInfo.status === 'available' ? 'new-version' : updateInfo.status === 'checking' ? 'checking' : 'none'}
       />
       {uxNotice && (
         <div className={`feedback-toast mx-3 mt-2 px-3 py-2 text-sm ${
@@ -1596,12 +1684,14 @@ function App() {
           onTeamModeChange={setTeamMode}
           teamKey={teamKey}
           onTeamKeyChange={setTeamKey}
-          valorantEnabled={valorantEnabled}
-          onValorantEnabledChange={setValorantEnabled}
           pickerPrefixKey={pickerPrefixKey}
           onPickerPrefixKeyChange={setPickerPrefixKey}
           onExport={() => setShowExportDialog(true)}
           onImport={() => setShowImportDialog(true)}
+          updateInfo={updateInfo.status === 'idle' ? null : updateInfo}
+          onCheckUpdate={handleCheckUpdate}
+          onStartDownload={handleStartDownload}
+          onQuitAndInstall={handleQuitAndInstall}
         />
       )}
 

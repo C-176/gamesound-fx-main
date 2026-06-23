@@ -1,9 +1,11 @@
 import { ipcRenderer, contextBridge } from 'electron';
 
 const soundsPath = ipcRenderer.sendSync('get-sounds-path');
+const appVersion = ipcRenderer.sendSync('get-app-version');
 
 contextBridge.exposeInMainWorld('electron', {
   soundsPath: soundsPath,
+  appVersion: appVersion,
   soundBaseUrl: 'sound://',
   ipcRenderer: {
     send: (channel: string, ...args: unknown[]) => {
@@ -38,6 +40,8 @@ contextBridge.exposeInMainWorld('electron', {
         'play-sound-from-spotlight',
         'csgo-start-monitor',
         'csgo-stop-monitor',
+        'start-download',
+        'quit-and-install',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.send(channel, ...args);
@@ -46,6 +50,7 @@ contextBridge.exposeInMainWorld('electron', {
     sendSync: (channel: string, ...args: unknown[]) => {
       const validChannels = [
         'get-sounds-path',
+        'get-app-version',
         'get-valorant-status',
       ];
       if (validChannels.includes(channel)) {
@@ -70,6 +75,7 @@ contextBridge.exposeInMainWorld('electron', {
         'import-config-apply',
         'csgo-get-status',
         'csgo-write-config',
+        'check-for-update',
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -97,6 +103,11 @@ contextBridge.exposeInMainWorld('electron', {
         'toggle-spotlight-search',
         'csgo-event-fired',
         'csgo-status-changed',
+        'update-available',
+        'download-progress',
+        'update-downloaded',
+        'update-error',
+        'update-check-done',
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, listener);

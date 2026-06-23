@@ -19,17 +19,26 @@ interface SettingsModalProps {
   onTeamModeChange: (enabled: boolean) => void;
   teamKey: string;
   onTeamKeyChange: (key: string) => void;
-  valorantEnabled?: boolean;
-  onValorantEnabledChange?: (enabled: boolean) => void;
   pickerPrefixKey?: string;
   onPickerPrefixKeyChange?: (key: string) => void;
   onExport?: () => void;
   onImport?: () => void;
+  /** Update state from parent */
+  updateInfo?: {
+    status: string;
+    version?: string;
+    progress?: number;
+    releaseNotes?: string;
+    error?: string;
+  } | null;
+  onCheckUpdate?: () => void;
+  onStartDownload?: () => void;
+  onQuitAndInstall?: () => void;
 }
 
 const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'Space'];
 
-function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearData, stopShortcut, onSetStopShortcut, onClearStopShortcut, teamMode, onTeamModeChange, teamKey, onTeamKeyChange, valorantEnabled, onValorantEnabledChange, pickerPrefixKey, onPickerPrefixKeyChange, onExport, onImport }: SettingsModalProps) {
+function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearData, stopShortcut, onSetStopShortcut, onClearStopShortcut, teamMode, onTeamModeChange, teamKey, onTeamKeyChange, pickerPrefixKey, onPickerPrefixKeyChange, onExport, onImport, updateInfo, onCheckUpdate, onStartDownload, onQuitAndInstall }: SettingsModalProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingKey, setRecordingKey] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -179,23 +188,6 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
           <div className="pt-1">
             <div className="meta-label uppercase tracking-[1.2px]">游戏联动</div>
           </div>
-          {/* Valorant Monitor */}
-          <div>
-            <SectionTitle icon={<Satellite size={12} color={themeColor.accent} />} variant="accent">{copy.settings.valorant}</SectionTitle>
-            <div className="panel-inset space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-text-primary">{copy.settings.logMonitor}</span>
-                <button
-                  onClick={() => onValorantEnabledChange?.(!valorantEnabled)}
-                  className={`toggle-chip ${valorantEnabled ? 'is-on' : ''}`}
-                >
-                  {valorantEnabled ? copy.common.on : copy.common.off}
-                </button>
-              </div>
-              <p className="meta-label">{copy.settings.valorantHint}</p>
-            </div>
-          </div>
-
           {/* Picker Prefix Key */}
           <div>
             <SectionTitle icon={<Rocket size={12} color={themeColor.pink} />}>{copy.settings.pickerPrefix}</SectionTitle>
@@ -255,6 +247,77 @@ function SettingsModal({ onClose, shortcuts, onRemoveShortcut, sounds, onClearDa
                   <span>{text}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* About / Update */}
+          <div>
+            <SectionTitle icon={<Satellite size={12} color={themeColor.cyan} />}>{copy.about.title}</SectionTitle>
+            <div className="panel-inset space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="meta-label">{copy.about.version}</span>
+                <span className="text-sm text-text-primary tabular-nums">v{window.electron?.appVersion || '1.0.0'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="meta-label">{copy.about.author}</span>
+                <span className="text-sm text-text-primary">GameSound FX Team</span>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={onCheckUpdate}
+                  disabled={updateInfo?.status === 'checking'}
+                  className="flex-1 px-3 py-2 border border-border-default bg-bg-tertiary text-text-primary text-sm cursor-pointer hover:border-accent transition-none rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {updateInfo?.status === 'checking' ? copy.about.updateChecking : copy.about.checkUpdate}
+                </button>
+                {updateInfo?.status === 'downloading' && updateInfo.progress != null && (
+                  <div className="flex-1 px-3 py-2 border border-border-default bg-bg-tertiary text-sm rounded-lg flex flex-col items-center justify-center gap-1">
+                    <div className="w-full bg-bg-secondary rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full bg-accent rounded-full transition-none"
+                        style={{ width: `${updateInfo.progress}%` }}
+                      />
+                    </div>
+                    <span className="meta-label">{updateInfo.progress.toFixed(0)}%</span>
+                  </div>
+                )}
+              </div>
+              {updateInfo?.status === 'available' && updateInfo.version && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-accent font-medium">{copy.about.updateAvailable(updateInfo.version)}</span>
+                  </div>
+                  {updateInfo.releaseNotes && (
+                    <div className="text-xs text-text-secondary meta-label">{updateInfo.releaseNotes}</div>
+                  )}
+                  <button
+                    onClick={onStartDownload}
+                    className="w-full px-3 py-2 border border-accent bg-accent/10 text-accent text-sm cursor-pointer hover:bg-accent/20 transition-none rounded-lg"
+                  >
+                    下载更新
+                  </button>
+                </div>
+              )}
+              {updateInfo?.status === 'downloaded' && updateInfo.version && (
+                <div className="space-y-1">
+                  <div className="text-sm text-accent-green font-medium">{copy.update.downloaded}</div>
+                  <button
+                    onClick={onQuitAndInstall}
+                    className="w-full px-3 py-2 border border-accent-green bg-accent-green/10 text-accent-green text-sm cursor-pointer hover:bg-accent-green/20 transition-none rounded-lg"
+                  >
+                    {copy.update.installNow}
+                  </button>
+                </div>
+              )}
+              {updateInfo?.status === 'up-to-date' && (
+                <div className="text-sm text-text-secondary meta-label">{copy.update.upToDate}</div>
+              )}
+              {updateInfo?.status === 'error' && (
+                <div className="space-y-1">
+                  <div className="text-sm text-accent-red">{copy.update.error}</div>
+                  <div className="text-xs text-text-secondary meta-label">{copy.update.errorHint}</div>
+                </div>
+              )}
             </div>
           </div>
 

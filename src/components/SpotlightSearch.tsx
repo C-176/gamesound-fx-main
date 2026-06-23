@@ -13,7 +13,6 @@ export default function SpotlightSearch({ open, onClose, sounds, onPlaySound, sh
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const expanded = query.trim().length > 0;
 
@@ -35,12 +34,22 @@ export default function SpotlightSearch({ open, onClose, sounds, onPlaySound, sh
 
   const visible = filtered.slice(0, 12);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Block Alt modifier — Alt+Space already handled by global shortcut,
+    // but Alt may still be held down when input receives focus.
+    if (e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+  }, []);
+
+  const handleContainerKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { onClose(); return; }
     if (!expanded) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(i => i >= visible.length - 1 ? 0 : i + 1);
+      setSelectedIndex(i => i >= (visible.length - 1) ? 0 : i + 1);
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -62,6 +71,7 @@ export default function SpotlightSearch({ open, onClose, sounds, onPlaySound, sh
     <div
       className="fixed inset-0 z-[99999] flex items-start justify-center pt-[12vh]"
       onClick={onClose}
+      onKeyDown={handleContainerKeyDown}
     >
       <div
         className="w-[520px] max-w-[90vw] surface-card border-accent/40 overflow-hidden shadow-retro"
@@ -79,7 +89,7 @@ export default function SpotlightSearch({ open, onClose, sounds, onPlaySound, sh
             type="text"
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
             placeholder="搜索音效..."
             className="flex-1 bg-transparent text-text-primary text-base outline-none placeholder:text-text-muted/60"
           />
@@ -89,7 +99,7 @@ export default function SpotlightSearch({ open, onClose, sounds, onPlaySound, sh
         {/* Results — only when expanded */}
         {expanded && (
           <>
-            <div ref={listRef} className="max-h-[360px] overflow-y-auto py-1">
+            <div className="max-h-[360px] overflow-y-auto py-1">
               {visible.length === 0 ? (
                 <div className="px-4 py-8 text-center text-text-muted text-sm">
                   没有匹配的音效
